@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>瞿才应 · 大模型算法 / AI Agent / 后端开发</title>
+<meta name="description" content="瞿才应，华东师范大学 2027 届本科，求职大模型算法、AI Agent 开发与后端开发。实习经历：腾讯天美 J1、哔哩哔哩数据平台部、上海骏梦《ROX》。">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0f12" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/site.css">
+<script src="assets/js/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="#top">瞿才应</a>
+    <nav class="nav" aria-label="页面导航">
+      <a href="#projects">项目</a>
+      <a href="#experience">实习</a>
+      <a href="#skills">技能</a>
+      <a href="#contact">联系</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div class="hero-text">
+        <p class="eyebrow mono"><span>华东师范大学（985）</span> · <span>2027 届本科</span></p>
+        <h1>瞿才应</h1>
+        <p class="role">大模型算法<span class="slash">/</span>AI Agent<span class="slash">/</span>后端开发</p>
+        <p class="lede">在哔哩哔哩做过 A/B 实验平台的分析 Agent 和评测平台，在腾讯天美做过游戏服务端的读链路、聊天推送和压测治理。项目做过 SQL 分析 Agent 的后训练、秒杀下单系统，以及扣除交易成本的机器学习选股研究。</p>
+        <div class="actions">
+          <a class="btn btn-primary" href="mailto:qu1024520330@163.com">发邮件</a>
+          <button class="btn" type="button" data-copy="qu1024520330@163.com">复制邮箱</button>
+          <a class="btn" href="https://github.com/leinay633-maker" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+      <aside class="panel highlights" aria-label="几项结果">
+        <div class="panel-bar mono"><span>highlights</span><span>详见下文</span></div>
+        <dl>
+          <div><dt>+8.4 点</dt><dd>后训练后 BIRD 执行准确率 49.5%→57.9%</dd></div>
+          <div><dt>0 超卖</dt><dd>秒杀系统各轮压测，重复下单也是 0</dd></div>
+          <div><dt>73→96%</dt><dd>B 站 Agent 知识检索的文件召回率</dd></div>
+          <div><dt>约九成</dt><dd>B 站评测平台省下的发版验收人力</dd></div>
+        </dl>
+      </aside>
+    </div>
+    <ul class="orgs" aria-label="实习单位">
+      <li><span class="org">腾讯 · 天美 J1</span><span class="when mono">2026.07 – 至今</span></li>
+      <li><span class="org">哔哩哔哩 · 数据平台部</span><span class="when mono">2026.03 – 2026.07</span></li>
+      <li><span class="org">上海骏梦 · 《ROX》</span><span class="when mono">2026.01 – 2026.03</span></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="projects">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">01</span>
+      <h2>项目</h2>
+      <p class="section-note">三个项目的代码都在 GitHub 公开仓库里，链接在每个项目末尾。后训练和选股两个项目各配了一部讲解视频。</p>
+    </header>
+
+    <article class="project">
+      <div class="project-media">
+        <div class="panel">
+          <div class="panel-bar mono"><span>preregistered</span><span>BIRD · Qwen3-4B</span></div>
+          <table class="ledger">
+            <caption class="sr-only">各轮预注册实验的主比较与判定</caption>
+            <thead>
+              <tr><th scope="col">版本</th><th scope="col">主比较</th><th scope="col">判定</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="mono">v0.3</td><td>修复式 SFT 对比普通 SFT</td><td><span class="verdict bad"><i aria-hidden="true">✕</i>反向</span></td></tr>
+              <tr><td class="mono">v0.5</td><td>拒绝采样微调对比原始模型</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+              <tr><td class="mono">v0.7</td><td>32B 老师轨迹对比自采</td><td><span class="verdict none"><i aria-hidden="true">–</i>不成立</span></td></tr>
+              <tr><td class="mono">v0.8</td><td>混入 235B 老师轨迹对比自采</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+              <tr><td class="mono">v0.9</td><td>在线 RL 对比起点</td><td><span class="verdict none"><i aria-hidden="true">–</i>未过线</span></td></tr>
+              <tr><td class="mono">v0.10</td><td>全参数 RL 对比 LoRA RL</td><td><span class="verdict bad"><i aria-hidden="true">✕</i>反向</span></td></tr>
+              <tr><td class="mono">v0.11</td><td>边界题 RL 对比起点</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+              <tr><td class="mono">v0.12</td><td>在线蒸馏对比离线蒸馏</td><td><span class="verdict none"><i aria-hidden="true">–</i>不成立</span></td></tr>
+            </tbody>
+          </table>
+          <dl class="panel-metrics">
+            <div><dt>BIRD dev 执行准确率</dt><dd>57.9%</dd><dd class="delta">原始模型 49.5%</dd></div>
+            <div><dt>边界题 RL 对比起点</dt><dd>+2.6<small>点</small></dd><dd class="delta">项目判分，95% 区间 [+0.7, +4.7]</dd></div>
+            <div><dt>测试题</dt><dd>1501</dd><dd class="delta">数据库训练时未见</dd></div>
+          </dl>
+        </div>
+        <div class="panel video">
+          <div class="panel-bar mono"><span>explainer</span><span>B 站 · 10:32</span></div>
+          <button class="video-cover" type="button" data-bvid="BV1RfxV68EgG" data-title="执行结果能教会模型多少？给 4B 小模型做 SQL Agent 后训练" aria-label="播放讲解视频《执行结果能教会模型多少》，10 分 32 秒">
+            <img src="assets/img/sql-agent-video.webp" width="1280" height="720" alt="" loading="lazy" decoding="async">
+            <span class="video-play" aria-hidden="true">播放</span>
+          </button>
+        </div>
+      </div>
+      <div class="project-body">
+        <p class="project-meta mono"><span>P/01</span><span>个人项目</span></p>
+        <h3>SQL 数据分析 Agent 后训练</h3>
+        <p class="project-lede">给 Qwen3-4B 做多轮 SQL 分析 Agent 的后训练，在 BIRD 上依次比较拒绝采样微调、偏好优化、大模型蒸馏和在线强化学习，每轮先写预注册再上 H20 跑，4B 的官方执行准确率从 49.5% 提到 57.9%。</p>
+        <ul class="points">
+          <li><b>Agent 与评测</b>模型在只读 SQLite 沙箱里先查表、试跑 SQL、看到结果再提交，评测按数据库隔离、全程看不到金标；判分比官方 EX 更严，主比较用按数据库聚类的 bootstrap 区间判定，结论不成立也照实记录。</li>
+          <li><b>离线训练</b>发现只监督最终答案会把“先查再交”的习惯训没，改为对执行验证过的整条多轮轨迹做拒绝采样微调，再接 DPO；235B 老师先在开发集上证明比学生强 5 个点以上，才用来蒸馏、补到学生做不对的题上。</li>
+          <li><b>在线强化学习</b>以执行结果为奖励做 RLOO，LoRA 每步热更新到 vLLM 采样端；对照里 FSDP2 全参数分布式版本反而比 LoRA 低 4.2 个点，在线蒸馏也没超过离线蒸馏；最终只在起点时对时错的边界题上训练，按更严的项目判分比起点再高 2.6 个点、过了预注册检验。</li>
+        </ul>
+        <ul class="tags"><li>Qwen3-4B</li><li>LoRA</li><li>拒绝采样微调</li><li>DPO</li><li>RLOO</li><li>FSDP2</li><li>vLLM</li></ul>
+        <p class="links">
+          <a href="https://github.com/leinay633-maker/sql-agent-post-training" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://www.bilibili.com/video/BV1RfxV68EgG/" target="_blank" rel="noopener">B 站讲解视频</a>
+        </p>
+      </div>
+    </article>
+
+    <article class="project">
+      <div class="project-media">
+        <div class="panel">
+          <div class="panel-bar mono"><span>flow</span><span>下单主链路</span></div>
+          <ol class="flow">
+            <li><span class="k">请求</span><span class="v">k6 压测流量进入 Spring Boot 入口</span></li>
+            <li><span class="k">限流</span><span class="v">Redis ZSET 滑动窗口</span></li>
+            <li><span class="k">防重复</span><span class="v">用户 × SKU 幂等</span></li>
+            <li><span class="k">预扣库存</span><span class="v">Redis Lua 原子扣减</span></li>
+            <li><span class="k">可靠投递</span><span class="v">本地消息表 + RabbitMQ 异步削峰</span></li>
+            <li><span class="k">落库</span><span class="v">MySQL 唯一索引与条件更新兜底</span></li>
+          </ol>
+          <dl class="panel-metrics">
+            <div><dt>超卖 / 重复下单</dt><dd>0</dd><dd class="delta">各轮压测</dd></div>
+            <div><dt>售罄尾部 p99</dt><dd>12<small>ms</small></dd><dd class="delta">优化前 98 ms</dd></div>
+            <div><dt>故障与负载场景</dt><dd>9/9</dd><dd class="delta">同机三个 JVM</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div class="project-body">
+        <p class="project-meta mono"><span>P/02</span><span>个人项目</span></p>
+        <h3>Mini 秒杀高并发下单系统</h3>
+        <p class="project-lede">聚焦秒杀下单主链路，解决库存不超卖、用户不重复下单、瞬时流量不打穿数据库。</p>
+        <ul class="points">
+          <li><b>下单链路</b>Redis Lua 原子预扣库存，MySQL 唯一索引兜底，订单经本地消息表和 RabbitMQ 异步落库，Redis 宕机时宁可拒单也不超卖。各轮压测零超卖、零重复下单，售罄尾部 p99 由 98 ms 降到 12 ms。</li>
+          <li><b>多实例库存协调</b>进程在预扣和落库之间被暂停或强杀时，库存不丢也不多退，醒来的旧节点过不了租约和版本号校验。同机三个 JVM 注入 9 个故障与负载场景，全部通过，协议多出的 Redis 往返也已压回改造前水平。</li>
+          <li><b>性能瓶颈</b>入口线程大多卡在等数据库连接，我没有扩连接池，而是削减入口的同步 SQL，单实例入口稳定档由 3000/s 提到 4000/s。换到独占云服务器后又定位到 RabbitMQ 发布端 channel 缓存不足，调整后由 3500/s 提到 4000/s。</li>
+        </ul>
+        <ul class="tags"><li>Java 17</li><li>Spring Boot 3</li><li>Redis Lua</li><li>RabbitMQ</li><li>MySQL</li><li>k6</li></ul>
+        <p class="links">
+          <a href="https://github.com/leinay633-maker/mini-seckill" target="_blank" rel="noopener">GitHub 仓库</a>
+        </p>
+      </div>
+    </article>
+
+    <article class="project">
+      <div class="project-media">
+        <div class="panel">
+          <div class="panel-bar mono"><span>protocol</span><span>研究流程</span></div>
+          <ol class="flow">
+            <li><span class="k">数据</span><span class="v">沪深全 A，保留 245 只退市股，只用当时可见的数据</span></li>
+            <li><span class="k">信号</span><span class="v">10 个量价特征；公式因子库在训练窗内做 FDR 筛选</span></li>
+            <li><span class="k">预测</span><span class="v">LightGBM 滚动样本外，2020–2024 年</span></li>
+            <li><span class="k">组合</span><span class="v">成本惩罚加换手上限，或风险模型加均值方差</span></li>
+            <li><span class="k">检验</span><span class="v">块 bootstrap 主要检验，按事先写定的规则冻结</span></li>
+            <li><span class="k">前向</span><span class="v">2025 年保留期只开一次，之后每日模拟盘</span></li>
+          </ol>
+          <dl class="panel-metrics">
+            <div><dt>样本外日秩 IC</dt><dd>0.086</dd><dd class="delta">简单方案</dd></div>
+            <div><dt>年化信息比率</dt><dd>0.41</dd><dd class="delta">扣除交易成本后</dd></div>
+            <div><dt>复杂对简单</dt><dd>p&nbsp;=&nbsp;0.84</dd><dd class="delta">未显著跑赢</dd></div>
+          </dl>
+        </div>
+        <div class="panel video">
+          <div class="panel-bar mono"><span>explainer</span><span>B 站 · 8:43</span></div>
+          <button class="video-cover" type="button" data-bvid="BV1z8x56uEhb" data-title="机器学习选股，扣掉成本还剩多少？一次沪深全 A 的样本外检验" aria-label="播放讲解视频《机器学习选股，扣掉成本还剩多少》，8 分 43 秒">
+            <img src="assets/img/costrank-video.webp" width="1280" height="720" alt="" loading="lazy" decoding="async">
+            <span class="video-play" aria-hidden="true">播放</span>
+          </button>
+        </div>
+      </div>
+      <div class="project-body">
+        <p class="project-meta mono"><span>P/03</span><span>课题组研究项目</span></p>
+        <h3>成本约束下的机器学习选股与滚动验证</h3>
+        <p class="project-lede">研究机器学习选股扣除交易成本后还剩多少超额。在沪深全 A 上做 2020–2024 年滚动样本外回测，冻结的方案现在每天收盘后跑模拟盘。</p>
+        <ul class="points">
+          <li><b>数据与回测</b>样本保留 245 只区间内退市股，只用当时可见的数据；账本按 T+1、涨跌停、停牌和整手逐笔成交。市盈率、市净率数据抽查发现可能含未来信息，按事先定的规则，183 个因子里的估值因子整组弃用。</li>
+          <li><b>检验与结论</b>10 个量价特征加成本约束的简单方案，样本外日秩 IC 0.086，扣除成本后年化信息比率只有 0.41。因子库加均值方差组合的复杂方案在块 bootstrap 检验下没有显著跑赢它（p&nbsp;=&nbsp;0.84），按看结果前写定的规则冻结简单方案，2025 年保留期只开一次。</li>
+          <li><b>归因与模拟盘</b>自建风险模型归因显示，开发期超额主要来自低特质波动、低流动性两个风格，分数剔除行业和风格后 IC 只剩约四分之一。模拟盘每天收盘后由云端定时任务运行，交易代码用哈希锁定，记录只追加，日报逐日拆解风格贡献。</li>
+        </ul>
+        <ul class="tags"><li>Python</li><li>pandas</li><li>LightGBM</li><li>BH-FDR</li><li>Clarabel</li><li>BaoStock</li></ul>
+        <p class="links">
+          <a href="https://github.com/leinay633-maker/costrank" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://www.bilibili.com/video/BV1z8x56uEhb/" target="_blank" rel="noopener">B 站讲解视频</a>
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section class="section" id="experience">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">02</span>
+      <h2>实习经历</h2>
+    </header>
+
+    <ol class="timeline">
+      <li class="exp">
+        <p class="exp-when mono"><span>2026.07</span><span>至今</span></p>
+        <div class="exp-main">
+          <h3>腾讯 · 天美 J1</h3>
+          <p class="exp-role">《怪物猎人：旅人》后台开发实习生<span class="mono">C++20 / Go</span></p>
+          <p class="exp-sum">负责游戏服务端的高并发读链路、聊天推送、过载保护与压测治理。</p>
+          <ul class="points">
+            <li><b>读链路与降级</b>榜单读请求由同榜串行改为并发处理，合并单请求内的重复查询，典型路径 DB 访问由 2 次降到 1 次。搭了按榜单资源控制、以整机 CPU 兜底的过载降级，进出阈值分离加连续周期判定来抑制抖动，支持配置热更新和快速回滚。</li>
+            <li><b>聊天与消息拷贝</b>完成私聊、小频道和大频道的分层路由改造；用火焰图定位消息体深拷贝热点，改为常量引用和缓冲区借用交换。专项压测中单实例世界频道单 key 稳定无超时的上限约 2200 TPS。</li>
+            <li><b>压测治理</b>修复压测客户端下行确认异常导致的缓存无法清理和指标失真，恢复可信基线；退队链路 DB 访问由 3 次降到 1 次，按既有压测数据估算 CPU 利用率降约 5 个百分点。</li>
+          </ul>
+        </div>
+      </li>
+      <li class="exp">
+        <p class="exp-when mono"><span>2026.03</span><span>2026.07</span></p>
+        <div class="exp-main">
+          <h3>哔哩哔哩 · 数据平台部</h3>
+          <p class="exp-role">AI Agent 研发实习生<span class="mono">RAG / 评测 / Runtime</span></p>
+          <p class="exp-sum">面向公司级 A/B 实验平台，用 Python 建设对话式实验分析 Agent，并独立搭建跨团队评测平台。</p>
+          <ul class="points">
+            <li><b>知识检索</b>近 700 份知识改为按索引、概览、详情三层渐进加载，用语义路由和工具并发召回替代串行检索。22 条配对用例上，文件召回率由 73% 提到 96%，知识阶段平均耗时由 18 s 降到 10 s，token 由 117k 降到 71k。</li>
+            <li><b>工具编排</b>统一注册显著性分析、样本量与 MDE 互算、CUPED 方差缩减 SQL 等 11 类分析工具，加入分层超时、Presto→Spark 降级和连续失败熔断；模型生成的代码在子进程沙箱里执行。</li>
+            <li><b>评测平台</b>发版验收由人工改为无人值守批量回归，一轮验收人力约降九成。按知识、SQL、结论、过程建断言，接入轨迹造例、LLM Judge 和 Bad Case 回流。</li>
+            <li><b>Runtime 与 MCP</b>统一 SSE 与 MCP 两类入口的执行内核，支持断线回放、外置 Checkpoint 和服务重启后续跑。实验分析流程开放为 MCP 工具后，上线 3 天在没有专项推广的情况下，有 17 名用户发起 144 次对话。</li>
+          </ul>
+        </div>
+      </li>
+      <li class="exp">
+        <p class="exp-when mono"><span>2026.01</span><span>2026.03</span></p>
+        <div class="exp-main">
+          <h3>上海骏梦 · 《ROX》项目</h3>
+          <p class="exp-role">LLM 应用开发实习生<span class="mono">配表自动化 / 数据验证</span></p>
+          <p class="exp-sum">《ROX》四地区配表以 JSON 为唯一写入源，把字段规则、历史案例、跨表校验和人工复核流程沉淀成可复用的本地 AI Skill。</p>
+          <ul class="points">
+            <li><b>AI 配表 Skill</b>基于 Claude Code 和 Codex 搭建配表 Skill，沉淀 10 张核心表字段字典、13 个流程规范和 13 个案例并按需加载。起草的 JSON 经四维校验和打表硬校验后交付四地区，复核出的错误回写案例库。</li>
+            <li><b>模拟与数据验证</b>独立完成美服周年庆动态奖池 1000 万次单抽 Monte Carlo 模拟，量化余额波动区间与最低档停留占比；递归展开 4 个地区、最深 6 层的嵌套奖励链，输出核对表和风险清单。</li>
+          </ul>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="section" id="activities">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">03</span>
+      <h2>实践经历</h2>
+    </header>
+    <ul class="extras">
+      <li>
+        <h3>AI 科普短视频</h3>
+        <p class="exp-role">抖音、B 站个人账号<span class="mono">AI 视频 / 程序化生成</span></p>
+        <p class="exp-sum">做 AI 技术与数理科普短片、画面全由代码生成的 MV，已发布 10 多条，累计播放超 1.7 万。自定选题、风格规范和验收标准，调研、写稿、分镜和渲染交给 Claude Code 等 AI 代理（HyperFrames、WebGL 着色器、语音合成），发布前逐条核对论文和源码等出处。</p>
+        <p class="links"><a href="https://space.bilibili.com/497616266" target="_blank" rel="noopener">B 站主页</a></p>
+      </li>
+      <li>
+        <h3>跨年级学习资料共享平台</h3>
+        <p class="exp-role">发起人、负责人<span class="mono">网站开发 / 运营</span></p>
+        <p class="exp-sum">带 3 位同学搭建跨年级资料共享网站，负责网站开发、收录规则和整体推进。把资料缺口拆成可认领的任务，设署名和发布前核对，一个学期收录 40 多门课程、300 多份资料，实习前交接给低年级同学维护。</p>
+      </li>
+      <li>
+        <h3>原创校园实景解谜活动</h3>
+        <p class="exp-role">发起人、主策划<span class="mono">活动策划 / 用户测试</span></p>
+        <p class="exp-sum">带 4 位同学完成剧情、谜题与现场执行，正式活动 50 多人参与。按试玩反馈把熟人梗换成材料内可得的线索、设逐级提示，两轮盲测后分批分线入场。</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="skills">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">04</span>
+      <h2>技能</h2>
+    </header>
+    <dl class="skills">
+      <div><dt>语言</dt><dd>C++20、Go、Java、Python、TypeScript</dd></div>
+      <div><dt>模型训练</dt><dd>PyTorch、LoRA、DPO、RLOO、vLLM、FSDP2；做过拒绝采样微调、蒸馏与在线强化学习的完整后训练</dd></div>
+      <div><dt>后端</dt><dd>Spring Boot、FastAPI、Redis、MySQL、RabbitMQ、SSE 流式服务；限流、幂等、熔断与过载降级</dd></div>
+      <div><dt>AI Agent</dt><dd>LangGraph / DeepAgents 编排与 Middleware 扩展，MCP 服务端与工具设计，RAG 检索，上下文工程与会话状态管理，Agent 评测与 LLM Judge</dd></div>
+      <div><dt>AI 工具</dt><dd>Claude Code、Codex、Skill 编写与维护、Prompt Caching；读过 Claude Code 源码（Query Loop、Tool Runtime、权限与压缩）</dd></div>
+      <div><dt>前端</dt><dd>Vue、React、TypeScript，做过评测标注台和对话前端</dd></div>
+      <div><dt>计算机基础</dt><dd>数据结构与算法、操作系统、计算机网络、数据库原理</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="section" id="education">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">05</span>
+      <h2>教育</h2>
+    </header>
+    <div class="exp edu">
+      <p class="exp-when mono"><span class="solo">2027 届</span></p>
+      <div class="exp-main">
+        <h3>华东师范大学（985）</h3>
+        <p class="exp-role">本科</p>
+        <p class="exp-sum">主修数据结构与算法、操作系统、计算机网络、数据库原理，另修机器学习、人工智能、数值分析、最优化与数学建模。</p>
+        <p class="exp-sum">在校成绩前 10%，获数学建模比赛二等奖。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section contact" id="contact">
+  <div class="wrap">
+    <header class="section-head">
+      <span class="section-no mono">06</span>
+      <h2>联系</h2>
+    </header>
+    <p class="contact-mail"><a href="mailto:qu1024520330@163.com">qu1024520330@163.com</a></p>
+    <div class="actions">
+      <button class="btn btn-primary" type="button" data-copy="qu1024520330@163.com">复制邮箱</button>
+      <a class="btn" href="https://github.com/leinay633-maker" target="_blank" rel="noopener">github.com/leinay633-maker</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner mono">
+    <span>© 2026 瞿才应</span>
+    <span>最后更新 2026-10-28</span>
+  </div>
+</footer>
+</body>
+</html>
