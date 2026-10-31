@@ -3,7 +3,7 @@
   --surface: #fffefb;
   --ink: #16181b;
   --ink-2: #3a4047;
-  --muted: #6b727b;
+  --muted: #646a72;
   --line: #e4e1d9;
   --line-2: #cfcbc0;
   --dot: #d6d2c6;
@@ -101,8 +101,9 @@ p { text-wrap: pretty; }
   letter-spacing: .06em;
   text-decoration: none;
 }
-.nav { display: flex; gap: clamp(14px, 3vw, 28px); }
+.nav { display: flex; gap: clamp(10px, 3vw, 28px); }
 .nav a {
+  padding: 8px 0;
   font-size: 14px;
   color: var(--muted);
   text-decoration: none;
@@ -217,7 +218,7 @@ p { text-wrap: pretty; }
   border-color: var(--ink);
   color: var(--bg);
 }
-.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
 
 .orgs {
   display: grid;
@@ -490,7 +491,6 @@ p { text-wrap: pretty; }
   text-decoration: none;
 }
 .links a::after { content: " ↗"; }
-.links .private { font-size: 12.5px; color: var(--muted); }
 .links a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* 讲解视频：先放封面，点了才换成 B 站播放器 */
@@ -671,6 +671,23 @@ p { text-wrap: pretty; }
   .panel-metrics div { padding: 10px; }
   .ledger { font-size: 13px; }
   .ledger th, .ledger td { padding-left: 10px; padding-right: 10px; }
+}
+
+@media (max-width: 479px) {
+  /* 三格并排会把说明挤成三四行，改成一行一格：左边数值，右边名称和说明，排法同首屏 highlights */
+  .panel-metrics { grid-template-columns: minmax(0, 1fr); }
+  .panel-metrics div {
+    display: grid;
+    grid-template-columns: 6em minmax(0, 1fr);
+    grid-template-areas: "v k" "v d";
+    gap: 2px 12px;
+    align-items: baseline;
+    padding: 10px 14px;
+  }
+  .panel-metrics div + div { border-left: 0; border-top: 1px solid var(--panel-line); }
+  .panel-metrics dt { grid-area: k; }
+  .panel-metrics dd { grid-area: v; }
+  .panel-metrics dd.delta { grid-area: d; }
 }
 
 @media (prefers-reduced-motion: reduce) {
