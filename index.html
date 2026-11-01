@@ -40,7 +40,7 @@
         <p class="eyebrow mono"><span>华东师范大学（985）</span> · <span>2027 届本科</span></p>
         <h1>瞿才应</h1>
         <p class="role">大模型算法<span class="slash">/</span>推荐算法</p>
-        <p class="lede">在哔哩哔哩做过 A/B 实验平台的分析 Agent 和评测平台，在腾讯天美做过游戏服务端的读链路、聊天推送和压测治理。项目做过 SQL 分析 Agent 的后训练、用随机曝光数据检验推荐模型的离线评测、秒杀下单系统，以及扣除交易成本的机器学习选股研究。</p>
+        <p class="lede">在哔哩哔哩做过 A/B 实验平台的分析 Agent 和评测平台，在腾讯天美做过游戏服务端的读链路、聊天推送和压测治理。项目做过 SQL 分析 Agent 的后训练、生成式召回与推荐模型的离线评测偏差研究、秒杀下单系统，以及扣除交易成本的机器学习选股研究。</p>
         <div class="actions">
           <a class="btn btn-primary" href="mailto:qu1024520330@163.com">发邮件</a>
           <button class="btn" type="button" data-copy="qu1024520330@163.com">复制邮箱</button>
@@ -128,32 +128,32 @@
     <article class="project">
       <div class="project-media">
         <div class="panel">
-          <div class="panel-bar mono"><span>protocol</span><span>KuaiRand-Pure</span></div>
+          <div class="panel-bar mono"><span>protocol</span><span>KuaiRand · KuaiRec</span></div>
           <ol class="flow">
-            <li><span class="k">数据</span><span class="v">常规日志与随机曝光日志，合计约 260 万条交互</span></li>
-            <li><span class="k">模型</span><span class="v">只用常规日志训练，7 个精排、4 个召回基线</span></li>
-            <li><span class="k">冻结</span><span class="v">正式测试前写定规则和模型组，测试集只开一次</span></li>
-            <li><span class="k">比较</span><span class="v">两份测试集的共同用户，每人等权</span></li>
+            <li><span class="k">数据</span><span class="v">KuaiRand 常规与随机曝光日志，KuaiRec 近全观测矩阵</span></li>
+            <li><span class="k">模型</span><span class="v">7 个精排、4 个召回；语义 ID 生成式召回、SASRec、双塔</span></li>
+            <li><span class="k">冻结</span><span class="v">主评测在正式测试前写定规则和模型组，测试集只开一次</span></li>
+            <li><span class="k">比较</span><span class="v">共同用户每人等权；同一份列表算稠密、加权、借用曝光</span></li>
             <li><span class="k">检验</span><span class="v">用户级 bootstrap 判定差距有没有变，Holm 校正</span></li>
             <li><span class="k">校准</span><span class="v">随机曝光校准集上按视频热度分组做 Platt</span></li>
           </ol>
           <dl class="panel-metrics">
+            <div><dt>Kendall τ</dt><dd>0</dd><dd class="delta">近全观测测试对自然日志，热度从第一到最后</dd></div>
             <div><dt>logQ 双塔领先</dt><dd>0.005</dd><dd class="delta">随机曝光 Recall@100，常规测试 0.241</dd></div>
-            <div><dt>精排两两比较</dt><dd>21<small>对</small></dd><dd class="delta">差距变化均未检出显著</dd></div>
-            <div><dt>LogLoss 低于全局 Platt</dt><dd>7/7</dd><dd class="delta">按热度分组校准后</dd></div>
+            <div><dt>混训后随机测试</dt><dd>+0.026</dd><dd class="delta">UAUC，LightGBM 补充实验，混入约 5% 随机曝光数据</dd></div>
           </dl>
         </div>
       </div>
       <div class="project-body">
         <p class="project-meta mono"><span>P/02</span><span>个人项目</span></p>
-        <h3>推荐模型离线评测与随机曝光检验</h3>
-        <p class="project-lede">用快手开源 KuaiRand-Pure 数据集约 260 万条交互，对照常规日志与随机曝光日志，检验离线评测下推荐模型的比较结论和概率预估会不会被曝光偏差带偏；主标签近似有效播放，正式测试前冻结评测规则和模型组。</p>
+        <h3>短视频生成式召回、精排与曝光偏差评测</h3>
+        <p class="project-lede">用快手开源 KuaiRand、KuaiRec 两份数据，以随机曝光日志和近乎全观测的用户 × 视频矩阵作对照，检验常规离线评测会不会把召回、精排模型的比较结论和点击率预估带偏；主评测的规则和模型组在开测试集前冻结。</p>
         <ul class="points">
-          <li><b>模型与评测</b>在常规日志上构建 DCN-v2、DIN、MMoE、LightGBM 等 7 个精排基线和 ItemCF、logQ 校正双塔等 4 个召回基线；精排和召回各取两份测试集的共同用户、每人等权比较，用用户级 bootstrap 判定模型差距有没有变。</li>
-          <li><b>评测发现</b>召回模型在常规测试上的 Recall@100 差距到随机曝光上大幅缩小，logQ 双塔对普通双塔的领先由 0.241 缩到 0.005；精排模型一起下降，但 21 对 UAUC 差距都未检出显著变化。</li>
-          <li><b>概率校准</b>模型在随机曝光上都高估，直接用时 LogLoss 比常数预测还差；用随机曝光校准集按视频热度分组做 Platt 校准，7 个模型的 LogLoss 都低于全局 Platt，并观察到热度基线以外 6 个模型的 UAUC 较未校准提高约 0.02。</li>
+          <li><b>生成式召回</b>实现基于 RQ-VAE 语义 ID 和前缀树约束解码的生成式召回，与 SASRec、logQ 双塔对比；近全观测测试上排第一的热度在自然日志上排最后（5 模型 Kendall τ = 0），曝光加权把语义 ID 对双塔的领先放大约 3.4 倍。</li>
+          <li><b>召回与精排</b>在 KuaiRand 上构建 ItemCF、logQ 双塔等 4 个召回和 DCN-v2、DIN、MMoE 等 7 个精排模型；召回差距到随机曝光上几乎消失（logQ 双塔领先由 0.241 缩到 0.005），精排 21 对差距变化都未检出显著。</li>
+          <li><b>校准与去偏</b>模型在随机曝光上整体高估、越冷门高估越多，按热度分组 Platt 校准后 7 个模型的 LogLoss 都低于全局 Platt；补充实验里 LightGBM 训练集混入约 5% 随机曝光数据，随机曝光测试 UAUC 提高 0.026。</li>
         </ul>
-        <ul class="tags"><li>PyTorch</li><li>LightGBM</li><li>DCN-v2</li><li>DIN</li><li>MMoE</li><li>双塔召回</li><li>logQ</li><li>概率校准</li></ul>
+        <ul class="tags"><li>PyTorch</li><li>RQ-VAE 语义 ID</li><li>SASRec</li><li>LightGBM</li><li>DCN-v2</li><li>DIN</li><li>MMoE</li><li>双塔召回</li><li>logQ</li><li>概率校准</li></ul>
       </div>
     </article>
 
