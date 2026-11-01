@@ -688,6 +688,9 @@ p { text-wrap: pretty; }
   .panel-metrics dt { grid-area: k; }
   .panel-metrics dd { grid-area: v; }
   .panel-metrics dd.delta { grid-area: d; }
+  /* 判定列不换行，最长的判定会把整列撑宽、主比较挤成两行，所以窄屏把它拆成两行 */
+  .verdict .nb { display: block; }
+  .ledger th, .ledger td { padding-left: 8px; padding-right: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
