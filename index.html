@@ -150,7 +150,7 @@
         <p class="project-lede">用快手开源 KuaiRand、KuaiRec 两份数据，以随机曝光日志和近乎全观测的用户 × 视频矩阵作对照，检验常规离线评测会不会把召回、精排模型的比较结论和点击率预估带偏；主评测的规则和模型组在开测试集前冻结。</p>
         <ul class="points">
           <li><b>生成式召回</b>实现基于 RQ-VAE 语义 ID 和前缀树约束解码的生成式召回，与 SASRec、logQ 双塔对比；同一批用户、同一份推荐列表，只在别人实际被推过的视频里算命中，语义 ID 对双塔由领先 0.006 变为落后 0.032。</li>
-          <li><b>召回与精排</b>在 KuaiRand 上构建 ItemCF、logQ 双塔等 4 个召回和 DCN-v2、DIN、MMoE 等 7 个精排模型；召回的绝对差距到随机曝光上大幅压缩（logQ 双塔领先由 0.241 缩到 0.005，仍排第一），精排 21 对差距变化都未检出显著。</li>
+          <li><b>召回与精排</b>在 KuaiRand 上构建 ItemCF、logQ 双塔等 4 个召回和 DCN-v2、DIN、MMoE 等 7 个精排模型；召回差距到随机曝光上大幅压缩（logQ 双塔对双塔的 Recall 比由 2.61 降到 1.23，仍排第一），精排 21 对差距变化都未检出显著。</li>
           <li><b>校准与去偏</b>模型在随机曝光上整体高估、越冷门高估越多，按热度分组 Platt 校准后 7 个模型的 LogLoss 都低于全局 Platt；补充实验里 LightGBM 训练集混入约 5% 随机曝光数据，随机曝光测试 UAUC 提高 0.026。</li>
         </ul>
         <ul class="tags"><li>PyTorch</li><li>RQ-VAE 语义 ID</li><li>SASRec</li><li>LightGBM</li><li>DCN-v2</li><li>DIN</li><li>MMoE</li><li>双塔召回</li><li>logQ</li><li>概率校准</li></ul>
