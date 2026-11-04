@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="renderer" content="webkit">
+<title>离线评测会不会把推荐模型的比较带偏 · 瞿才应</title>
+<meta name="description" content="个人项目讲解：用 KuaiRand 随机曝光日志和 KuaiRec 近全观测矩阵，检验常规离线评测会不会改变召回、精排和生成式召回的比较结论。">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/css/site.css">
+<link rel="stylesheet" href="../../assets/css/explainer.css">
+<script src="../../assets/js/site.js" defer></script>
+<script src="../../assets/js/charts.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="../../">瞿才应</a>
+    <div class="topbar-right">
+      <nav class="nav" aria-label="页面导航">
+        <a href="../../#projects">全部项目</a>
+      </nav>
+      <button class="theme-btn" type="button"><span class="tb-long">切换</span><span class="tb-mode">深色</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+<article class="ex">
+
+<header class="ex-hero">
+  <a class="ex-back" href="../../#projects">← 回到主页的项目列表</a>
+  <p class="eyebrow mono"><span>个人项目</span> · <span>推荐评测</span></p>
+  <h1>离线评测会不会把推荐模型的比较带偏</h1>
+  <p class="ex-lede">推荐的离线测试集来自线上日志，日志里的视频是旧策略挑过的。我用快手开源的两份数据当对照，KuaiRand 的随机曝光日志和 KuaiRec 近乎全观测的用户 × 视频矩阵，检验常规离线评测会不会改变“哪个模型更好”。</p>
+  <ul class="tags"><li>PyTorch</li><li>LightGBM</li><li>DCN-v2</li><li>DIN</li><li>MMoE</li><li>logQ 双塔</li><li>RQ-VAE 语义 ID</li><li>SASRec</li></ul>
+  <div class="panel">
+    <div class="panel-bar mono"><span>results</span><span>KuaiRand · KuaiRec</span></div>
+    <dl class="panel-metrics four">
+      <div><dt>精排差距变化</dt><dd>0 / 21</dd><dd class="delta">Holm 校正后检出显著的对数</dd></div>
+      <div><dt>logQ 双塔对普通双塔</dt><dd>2.61×→1.23×</dd><dd class="delta">Recall@100 之比，常规测试→随机曝光，仍排第一</dd></div>
+      <div><dt>常规测试目标在最热组</dt><dd>75.7%</dd><dd class="delta">随机曝光上只有 26.8%</dd></div>
+      <div><dt>语义 ID 对双塔</dt><dd>+0.006→−0.032</dd><dd class="delta">Recall@100 差，稠密测试→只在实际被推过的视频里算</dd></div>
+    </dl>
+  </div>
+</header>
+
+<section class="ex-sec" id="problem">
+  <header class="section-head"><span class="section-no mono">01</span><h2>问题：离线测试集本身被旧策略筛过</h2></header>
+  <p>模型在常规离线测试上分高，可能只是更会猜旧策略推了什么，而不是更懂用户。KuaiRand-Pure 的常规测试里，有 72.8% 的行落在最热的两成视频上。</p>
+  <p>KuaiRand-Pure 同时有两份日志，27,285 个用户。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>常规日志</h4><p>线上推荐策略推出来的，143.7 万条交互、7,551 个视频。</p></div>
+    <div class="ex-box"><h4>随机曝光日志</h4><p>推荐流里把一部分位置换成从候选池随机抽的视频，118.6 万条、7,583 个视频。没被策略筛过，可以当对照。池里都是同一时期上传的新视频。</p></div>
+  </div>
+  <p>所以问题可以直接检验。同一批模型换一份没被筛过的测试集，“谁比谁好”会不会变？</p>
+
+  <h3>研究一的设计</h3>
+  <div class="ex-steps">
+    <div class="ex-step"><b>训练</b>只用常规日志，主标签 is_click（近似有效播放）</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>冻结模型组</b>精排 7 个：热度、逻辑回归、LightGBM、精排双塔、DCN-v2、DIN、MMoE；召回 4 个：热度、ItemCF、双塔、logQ 双塔</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-split">
+      <div class="ex-step"><b>常规测试</b>同一时期，同一场景</div>
+      <div class="ex-step"><b>随机曝光测试</b>同一时期，同一场景</div>
+    </div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>比差距变了多少</b>D = 随机上的差 − 常规上的差</div>
+  </div>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>同一批人比</h4><p>两份测试集的用户不一样，各算各的会把“评的人不同”当成曝光偏差。精排只在两边都有正负样本的 10,965 人上比，召回是 14,786 人，每人等权。</p></div>
+    <div class="ex-box"><h4>主统计量是差距变化</h4><p>不只看名次翻没翻，直接检验每对模型的差变了多少。精排 21 对一起做 Holm 校正，主指标是每人等权的 UAUC。</p></div>
+    <div class="ex-box"><h4>先定规则再训正式模型</h4><p>判定规则在训练正式模型前写定，之前只跑过冒烟和只出标准误的试点，用来做功效检查。模型组冻结后测试集只开一次，开之前程序核对协议、代码和模型文件的哈希。</p></div>
+    <div class="ex-box"><h4>种子也要一致</h4><p>LightGBM 和神经网络各训 3 个种子，成立要求至少 2 个同向。87 次训练在一张 RTX 3080 上 35 分钟跑完。</p></div>
+  </div>
+</section>
+
+<section class="ex-sec" id="ranking">
+  <header class="section-head"><span class="section-no mono">02</span><h2>精排：差距没检出变化</h2></header>
+  <div class="cx-card">
+    <h4>7 个精排模型的 UAUC：常规测试和随机曝光</h4>
+    <p class="cx-sub">每行一个模型，两个点之间的线是同一个模型换测试集后的落差。悬停或点按看数值。</p>
+    <div class="cx-legend"><span><i style="background:var(--c1)"></i>常规测试</span><span><i style="background:var(--c2)"></i>随机曝光</span></div>
+    <div id="c-rank"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table"><tr><th>模型</th><th>常规测试</th><th>随机曝光</th><th>随机 − 常规</th></tr>
+      <tr><td>MMoE</td><td>0.6065</td><td>0.5825</td><td>−0.0240</td></tr>
+      <tr><td>精排双塔</td><td>0.6056</td><td>0.5831</td><td>−0.0225</td></tr>
+      <tr><td>DIN</td><td>0.6049</td><td>0.5839</td><td>−0.0210</td></tr>
+      <tr><td>DCN-v2</td><td>0.6048</td><td>0.5816</td><td>−0.0232</td></tr>
+      <tr><td>逻辑回归</td><td>0.6047</td><td>0.5817</td><td>−0.0230</td></tr>
+      <tr><td>LightGBM</td><td>0.5957</td><td>0.5756</td><td>−0.0201</td></tr>
+      <tr><td>热度</td><td>0.5746</td><td>0.5494</td><td>−0.0252</td></tr></table>
+    </div></details>
+  </div>
+  <p>7 个模型一起降了 0.020 到 0.025。拿随机曝光上的 UAUC 对常规测试做回归，斜率 1.06、R² 0.98，两两差距大体按原比例保留。21 对的差距变化没有一对在 Holm 校正后显著，也没有一对显著翻转。</p>
+  <p>两边都分得清的只有三档，热度最差，LightGBM 其次，其余五个更好。这五个彼此只差 0.002 左右，比检出门槛还小（差距变化的最小可检出差中位数 0.0065，真有这么大的变化约八成能检出）。所以只说“未检出变化”，不说“排序一致”。点估计的第一名从 MMoE 换成了 DIN，但这两者在两份测试集上的差都不显著。</p>
+</section>
+
+<section class="ex-sec" id="retrieval">
+  <header class="section-head"><span class="section-no mono">03</span><h2>召回：差距被压得很厉害，logQ 双塔仍是第一</h2></header>
+  <div class="cx-duo">
+    <div class="cx-card">
+      <h4>常规测试 Recall@100</h4>
+      <p class="cx-sub">刻度 0 到 0.4</p>
+      <div id="c-rec-reg"></div>
+    </div>
+    <div class="cx-card">
+      <h4>随机曝光 Recall@100</h4>
+      <p class="cx-sub">刻度 0 到 0.03，比左图小一个数量级</p>
+      <div id="c-rec-rnd"></div>
+    </div>
+  </div>
+  <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+    <table class="cx-table"><tr><th>模型</th><th>常规测试</th><th>随机曝光</th></tr>
+    <tr><td>logQ 双塔</td><td>0.3902</td><td>0.0282</td></tr>
+    <tr><td>ItemCF</td><td>0.3260</td><td>0.0265</td></tr>
+    <tr><td>热度</td><td>0.2179</td><td>0.0228</td></tr>
+    <tr><td>普通双塔</td><td>0.1492</td><td>0.0230</td></tr></table>
+  </div></details>
+  <p>常规测试上 4 个模型在 0.149 到 0.390 之间，到随机曝光全挤在 0.023 到 0.028。完全随机排序的期望约 0.013，模型只有它的 1.7 到 2.1 倍，绝对差缩小有一部分只是整体都被压低了。</p>
+  <p>logQ 双塔对普通双塔的领先从 0.241 缩到 0.005（95% 区间 0.004 到 0.007），在随机曝光上仍然显著第一。按比值看，从 2.61 倍降到 1.23 倍，相对优势也缩了，但还在。6 对的差距变化全部显著，没有显著翻转。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>事先写的两条召回假设方向都反了</h4><p>预期热度相对 logQ 双塔会更吃亏，实际热度的落后从 0.172 缩到 0.005；预期 logQ 的优势会扩大，实际从 0.241 缩到 0.005。按规则都不成立，照实报告。</p></div>
+    <div class="ex-box"><h4>logQ 校正是什么</h4><p>双塔把同一批里其他行的视频当负样本，热门视频出现得多，会被过度打压。logQ 在训练时把 logit 减去视频在训练正样本里的对数频率。它校正的是批内采样偏差，不是曝光偏差。测试集打开后补了固定温度的对照，只算探索。按 Recall@100 看，0.241 几乎全来自 logQ，换温度的影响不到 0.01。</p></div>
+  </div>
+</section>
+
+<section class="ex-sec" id="why">
+  <header class="section-head"><span class="section-no mono">04</span><h2>为什么常规测试把 logQ 的领先放大了</h2></header>
+  <p>视频按训练期曝光数等分成五组，每组两成视频。常规测试约四分之三的目标在最热的一组。</p>
+  <div class="cx-card">
+    <h4>召回目标在五个热度组里的占比</h4>
+    <p class="cx-sub">每组都是两成视频</p>
+    <div class="cx-legend"><span><i class="bar" style="background:var(--c1)"></i>常规测试</span><span><i class="bar" style="background:var(--c2)"></i>随机曝光</span></div>
+    <div id="c-share"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table"><tr><th>热度组</th><th>最冷</th><th>较冷</th><th>中间</th><th>较热</th><th>最热</th></tr>
+      <tr><td>常规测试</td><td>0.6%</td><td>2.3%</td><td>5.2%</td><td>16.2%</td><td>75.7%</td></tr>
+      <tr><td>随机曝光</td><td>15.6%</td><td>16.9%</td><td>18.8%</td><td>21.9%</td><td>26.8%</td></tr>
+      <tr><td>logQ 双塔前 100 的占位</td><td>0.2%</td><td>0.3%</td><td>1.6%</td><td>9.8%</td><td>88.2%</td></tr>
+      <tr><td>普通双塔前 100 的占位</td><td>16.0%</td><td>18.3%</td><td>20.7%</td><td>22.5%</td><td>22.5%</td></tr></table>
+    </div></details>
+  </div>
+  <p>logQ 双塔推的前 100 里有 88% 是最热组的视频，普通双塔各组差不多。分组看命中率，两份测试上 logQ 都只在最热组赢、其余四组都输。</p>
+  <div class="cx-duo">
+    <div class="cx-card">
+      <h4>常规测试：logQ 双塔 − 普通双塔</h4>
+      <p class="cx-sub">各热度组的组内 Recall@100 之差</p>
+      <div id="c-gap-reg"></div>
+    </div>
+    <div class="cx-card">
+      <h4>随机曝光：logQ 双塔 − 普通双塔</h4>
+      <p class="cx-sub">同上，刻度约小五倍</p>
+      <div id="c-gap-rnd"></div>
+    </div>
+  </div>
+  <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+    <table class="cx-table"><tr><th>组内 Recall@100</th><th>最冷</th><th>较冷</th><th>中间</th><th>较热</th><th>最热</th></tr>
+    <tr><td>logQ 双塔 · 常规</td><td>0.0033</td><td>0.0275</td><td>0.0568</td><td>0.1681</td><td>0.4750</td></tr>
+    <tr><td>普通双塔 · 常规</td><td>0.1982</td><td>0.2183</td><td>0.2263</td><td>0.2269</td><td>0.1248</td></tr>
+    <tr><td>logQ 双塔 · 随机</td><td>0.0002</td><td>0.0006</td><td>0.0023</td><td>0.0107</td><td>0.0944</td></tr>
+    <tr><td>普通双塔 · 随机</td><td>0.0190</td><td>0.0231</td><td>0.0220</td><td>0.0272</td><td>0.0224</td></tr></table>
+  </div></details>
+  <p>常规测试 75.7% 的目标在最热组，正好是 logQ 赢的地方，所以它的领先被放大。把常规测试按随机曝光的热度组成重新加权，logQ 的领先就没了，普通双塔反而高 0.014。</p>
+  <p>那它在随机曝光上为什么还是第一？重新加权用的还是常规测试的组内命中率。到了随机曝光，普通双塔领先的那四组，组内召回掉了八到十倍；logQ 领先的最热组只掉了五倍，最热组又占随机目标的四分之一多，所以 logQ 还剩 0.005 的领先。</p>
+  <p class="ex-note">这组分解是测试集打开后补的分析，只作描述，不是检验。</p>
+</section>
+
+<section class="ex-sec" id="extra">
+  <header class="section-head"><span class="section-no mono">05</span><h2>点击率校准和混训随机数据</h2></header>
+  <div class="ex-boxes">
+    <div class="ex-box">
+      <h4>点击率在随机曝光上整体高估<span class="ex-tag">事先写定，成立</span></h4>
+      <p>训练期正样本率约 0.53，随机测试只有 0.18。学到的 6 个模型直接用时 LogLoss 是 0.73 到 0.75，比报一个常数（0.46）还差。越冷门高估越多，逻辑回归在最冷组的预测约为实际的 3.6 倍，最热组约 2.3 倍。</p>
+      <p>在随机曝光的校准集上，只调截距就修掉大头；Platt 同时调斜率还能再降，说明偏差不只是整体平移；按热度分 5 组各拟合 Platt、再向全局收缩，又降 0.0020 到 0.0034，7 个模型全部成立。</p>
+    </div>
+    <div class="ex-box">
+      <h4>训练时混一点随机数据<span class="ex-tag">补充实验</span></h4>
+      <p>LightGBM 训练轮数拉平后，往训练集里加相当于原训练集 5.5% 的随机曝光行，随机测试的 UAUC 从 0.576 提到 0.602；加同样多的更新的常规行，只高 0.0003，不显著。</p>
+      <p>训练行和测试来自同一份随机日志，只是日期不同，提升可能有一部分来自贴合测试分布；只试了一个模型、一种比例，不能当线上效果。</p>
+    </div>
+  </div>
+</section>
+
+<section class="ex-sec" id="genrec">
+  <header class="section-head"><span class="section-no mono">06</span><h2>研究二：换到 KuaiRec，看生成式召回</h2></header>
+  <p>研究一的随机曝光只去掉一种偏差，而且只在 7,583 个新视频的池子里成立。KuaiRec 有一块 1,411 个用户 × 3,327 个视频的小矩阵，约 99.6% 的格子有观看记录，可以直接看一个用户对全部候选的反应。它也不是纯随机曝光，快手先挑出彼此看过很多的用户和视频，再把没看过的格子补齐；视频文本的采集时点不明，可能晚于日志。我在上面实现了语义 ID 生成式召回，和 SASRec、带文本的 logQ 双塔、热度、打乱语义 ID 一起比。正样本是播放时长超过视频时长 2 倍。</p>
+
+  <h3>语义 ID 生成式召回怎么做的</h3>
+  <div class="ex-steps">
+    <div class="ex-step"><b>文本向量</b>标题、封面文字、话题、类目 → Qwen3-Embedding-0.6B，1,024 维</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>语义 ID</b>RQ-VAE 压到 32 维，3 层残差量化 × 64 个码，再加第 4 位区分码</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>生成</b>只有解码器的 Transformer 读最近 50 个正样本的码，生成下一个视频的 4 个 token</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>解码</b>前缀树约束的束搜索，只生成这个用户的候选，取前 100</div>
+  </div>
+  <p class="ex-note">模型约 328 万参数，给 1,121 个测试用户各排一遍，GPU 上不到 1 秒。打乱语义 ID 用同一套码随机打乱，码的集合和前缀树形状不变，只去掉视频和文本的对应，用来看文本语义有没有用。</p>
+
+  <h3>四种测试，前三种用同一份推荐列表</h3>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>稠密测试</h4><p>候选是用户在小矩阵里有记录的视频，每个正样本同权。1,121 人。</p></div>
+    <div class="ex-box"><h4>有偏测试</h4><p>同样的目标，按曝光量计权，曝光量是训练期其他用户在这个视频上的行数。</p></div>
+    <div class="ex-box"><h4>借用曝光</h4><p>给每个用户随机配一个别的用户，只把对方验证期实际看到的视频算作目标，抽 20 次取平均。1,117 人。</p></div>
+    <div class="ex-box"><h4>自然日志</h4><p>另一批 4,872 个用户之后几天的正样本，另一套候选。</p></div>
+  </div>
+  <p class="ex-note">前三种用的是同一批用户的同一份前 100，只换目标和权重；第四种换了人。</p>
+
+  <div class="cx-card">
+    <h4>5 个模型在四种测试上的名次（按 Recall@100）</h4>
+    <p class="cx-sub">从上到下第 1 到第 5 名，彩色是正文提到的三个模型</p>
+    <div class="cx-legend"><span><i style="background:var(--c2)"></i>热度</span><span><i style="background:var(--c1)"></i>文本语义 ID</span><span><i style="background:var(--c3)"></i>双塔</span><span><i style="background:var(--cdim)"></i>SASRec、打乱语义 ID</span></div>
+    <div id="c-bump"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table"><tr><th>Recall@100</th><th>稠密</th><th>有偏</th><th>借用曝光</th><th>自然日志</th></tr>
+      <tr><td>热度</td><td>0.2571</td><td>0.3862</td><td>0.0495</td><td>0.0334</td></tr>
+      <tr><td>SASRec</td><td>0.2260</td><td>0.2815</td><td>0.1220</td><td>0.0764</td></tr>
+      <tr><td>文本语义 ID</td><td>0.1996</td><td>0.2549</td><td>0.0811</td><td>0.0467</td></tr>
+      <tr><td>双塔</td><td>0.1946</td><td>0.2377</td><td>0.1127</td><td>0.0648</td></tr>
+      <tr><td>打乱语义 ID</td><td>0.1210</td><td>0.1634</td><td>0.0495</td><td>0.0418</td></tr></table>
+      <p class="ex-note">借用曝光上热度 0.049486、打乱语义 ID 0.049494，只差约 0.00001，未检出差异，图上按点估计排先后。</p>
+    </div></details>
+  </div>
+  <p>稠密测试和自然日志给出的排序对不上，10 对里 5 对方向相反，Kendall τ-b 是 0。按曝光量计权不改变稠密测试的排序，只把热度的领先再放大 0.074 到 0.087。同一批用户、同一份前 100，只换成在别人实际被推过的视频里算，排序就和自然日志一样。热度从第一掉到最后。</p>
+
+  <div class="cx-card">
+    <h4>文本语义 ID − 双塔，同一批 1,117 人、同一份前 100</h4>
+    <p class="cx-sub">两边都显著，差距变化 3 个种子都同号</p>
+    <div id="c-sid"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table"><tr><th>1,117 人上的 Recall@100</th><th>稠密测试</th><th>借用曝光</th></tr>
+      <tr><td>文本语义 ID</td><td>0.1983</td><td>0.0811</td></tr>
+      <tr><td>双塔</td><td>0.1927</td><td>0.1127</td></tr>
+      <tr><td>差</td><td>+0.0057</td><td>−0.0317</td></tr></table>
+      <p class="ex-note">这批人是有借用目标的 1,117 人，比上面名次图的 1,121 人少 4 个，所以稠密测试的值略有不同。</p>
+    </div></details>
+  </div>
+  <p>语义 ID 在稠密测试上领先双塔 0.006，只在实际被推过的视频里算就落后 0.032。换成不剪枝的精确打分，方向也不变（领先约 0.031、落后约 0.020）。我的理解是，借用的目标是当时推荐流里实际在推的视频，双塔有视频编号向量，更容易记住训练期哪些视频常被一起看；语义 ID 用文本码表示视频，推荐会往文本相似的方向偏。这一条没单独检验。</p>
+
+  <h3>研究二的其他发现</h3>
+  <ul class="points">
+    <li><b>前 100 没赢 SASRec，但头部更准。</b>按 Recall@100，文本语义 ID 在稠密测试上低 0.026、自然日志上低 0.030；稠密测试的 NDCG@20 反而高 0.034。</li>
+    <li><b>束搜索剪掉了不少好视频。</b>文本语义 ID 在束宽 100 下的前 100 和精确打分的前 100，人均只重合 53% 到 64%，Recall@100 少了约 12% 到 13%。精确打分下它在稠密测试上和 SASRec 点估计接近、未检出差异（0.2259 对 0.2260），借用曝光和自然日志上仍落后，所以搜索只解释了一部分。<span class="ex-tag">测试集打开后补的</span></li>
+    <li><b>冷启动没看到优势。</b>训练窗口里没有交互的 555 个视频，所有模型几乎都召不回，文本语义 ID 只召回 0.07%。</li>
+    <li><b>打乱对照踩过的坑。</b>“文本好于打乱”按事先写定的规则成立，+0.079，但大头来自打乱模型被早停留在了第一个 epoch。两个语义 ID 模型至少训 5 个 epoch 再挑，只剩 +0.011。两个模型又是各自调参的，这 0.011 也不能全算到文本语义上。这是开测试集前试跑时发现的，判定规则没改，偏离记录在案。</li>
+    <li><b>种子之间的差比区间大一个数量级。</b>用户 bootstrap 的区间不含训练随机性，所以成立还要求 3 个种子里至少 2 个同号。</li>
+  </ul>
+</section>
+
+<section class="ex-sec" id="limits">
+  <header class="section-head"><span class="section-no mono">07</span><h2>能说什么，不能说什么</h2></header>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>能说</h4><ul>
+      <li>在这批数据和模型上，常规离线评测没有把精排的比较带偏到能检出的程度。</li>
+      <li>常规离线评测会大幅放大召回的绝对差距。把常规测试按随机曝光的热度组成重新加权，logQ 双塔的领先就没了（事后补的描述）。</li>
+      <li>只限制哪些正样本能被观测到，就足以改变召回模型谁好谁差。</li>
+    </ul></div>
+    <div class="ex-box"><h4>不能说</h4><ul>
+      <li>不能当线上效果。随机曝光仍是事后收集的离线数据，测不到新模型上线后的闭环、位置影响和留存时长。</li>
+      <li>精排“未检出”不等于等效，排除不了比门槛更小的变化。</li>
+      <li>热度分解、logQ × 温度、混训、束搜索误差都是测试集打开后补的，不改正式结论。</li>
+      <li>自然日志是另一批用户、另一套候选，τ = 0 不能全归到曝光方式上。</li>
+    </ul></div>
+  </div>
+  <h3>落到工程上</h3>
+  <ul class="points">
+    <li><b>精排</b>强模型之间离线分不出来，不为离线差的 0.001 选型，挑两三个进 A/B。</li>
+    <li><b>召回</b>常规离线的绝对差距不能直接信，logQ 双塔的领先到随机曝光上从 0.241 缩到 0.005，不过它仍然第一。</li>
+    <li><b>点击率</b>随机曝光上整体高估、越冷门高估越多，要用随机曝光样本按热度分组校准。长期留一小桶随机流量做无偏评估和校准，桶要小，也要限定在候选池里。</li>
+    <li><b>生成式召回</b>束宽要和候选池、码表一起调，上线前拿一小批用户和精确打分对一次。</li>
+  </ul>
+</section>
+
+<section class="ex-sec" id="glossary">
+  <header class="section-head"><span class="section-no mono">08</span><h2>术语速查</h2></header>
+  <dl class="ex-gloss">
+    <dt>召回、精排</dt><dd>推荐通常分几步：召回先从全部视频里粗筛出几百个候选，精排再给这些候选逐个打分排序。</dd>
+    <dt>UAUC</dt><dd>每个用户内部算 AUC，再每人等权平均。推荐关心同一个用户内部的排序，全局 AUC 还会奖励把爱点的用户整体排前面。</dd>
+    <dt>Recall@100</dt><dd>用户的目标视频里，有多少落进模型推的前 100 个。</dd>
+    <dt>差距变化 D</dt><dd>同一对模型换测试集后差距变了多少。研究一是随机曝光上的差减常规测试上的差，研究二是稠密测试上的差减有偏或借用曝光上的差。</dd>
+    <dt>Holm 校正</dt><dd>多对比较一起做显著性检验时控制整体犯错率的方法，比 Bonferroni 稍宽松。</dd>
+    <dt>logQ 校正</dt><dd>批内负采样时，按视频在训练正样本里的频率扣掉 logit，免得热门视频被过度打压。</dd>
+    <dt>Kendall τ-b</dt><dd>两种排序有多一致，1 是完全一致。0 表示名次一致和相反的模型对一样多，互相抵消。</dd>
+    <dt>语义 ID</dt><dd>把视频的内容向量逐层量化成几个离散码，内容相近的视频共用前缀，生成模型逐位生成。</dd>
+    <dt>束搜索</dt><dd>逐位生成时每一步只留得分最高的若干个前缀；前缀下视频多时容易把好视频剪掉。</dd>
+  </dl>
+</section>
+
+<section class="ex-sec ex-end" id="more">
+  <header class="section-head"><span class="section-no mono">→</span><h2>其他项目</h2></header>
+  <ul class="ex-more">
+    <li><a href="../sql-agent/"><b>SQL 数据分析 Agent 后训练</b><span>执行结果能教会 4B 模型多少</span></a></li>
+    <li><a href="../costrank/"><b>成本约束下的机器学习选股</b><span>扣掉交易成本还剩多少超额</span></a></li>
+    <li><a href="../mini-seckill/"><b>Mini 秒杀高并发下单系统</b><span>库存不超卖、下单不重复</span></a></li>
+  </ul>
+</section>
+
+</article>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner mono">
+    <span>© 2026 瞿才应</span>
+    <a href="../../" style="color:inherit">回到主页</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var C = window.Charts, sgn = C.sgn;
+  C.dumbbell('c-rank', {
+    rows: [
+      { name: 'MMoE', a: 0.6065, b: 0.5825 },
+      { name: '精排双塔', a: 0.6056, b: 0.5831 },
+      { name: 'DIN', a: 0.6049, b: 0.5839 },
+      { name: 'DCN-v2', a: 0.6048, b: 0.5816 },
+      { name: '逻辑回归', a: 0.6047, b: 0.5817 },
+      { name: 'LightGBM', a: 0.5957, b: 0.5756 },
+      { name: '热度', a: 0.5746, b: 0.5494 }
+    ],
+    names: ['常规测试', '随机曝光'], short: ['常规', '随机'],
+    domain: [0.54, 0.615], ticks: [0.54, 0.56, 0.58, 0.60],
+    aria: '7 个精排模型在常规测试和随机曝光上的 UAUC'
+  });
+
+  function recRows(vals, cls) {
+    return [
+      { name: 'logQ 双塔', v: vals[0], cls: cls, strong: true },
+      { name: 'ItemCF', v: vals[1], cls: cls },
+      { name: '热度', v: vals[2], cls: cls },
+      { name: '普通双塔', v: vals[3], cls: cls, strong: true }
+    ];
+  }
+  C.hbars('c-rec-reg', {
+    rows: recRows([0.3902, 0.3260, 0.2179, 0.1492], 'f1'),
+    domain: [0, 0.42], ticks: [0, 0.1, 0.2, 0.3, 0.4], tickFmt: C.fixed(1), valFmt: C.fixed(3),
+    aria: '常规测试上 4 个召回模型的 Recall@100'
+  });
+  C.hbars('c-rec-rnd', {
+    rows: recRows([0.0282, 0.0265, 0.0228, 0.0230], 'f2'),
+    domain: [0, 0.0315], ticks: [0, 0.01, 0.02, 0.03], tickFmt: C.fixed(2), valFmt: C.fixed(4),
+    ref: { v: 0.0133, label: '随机排序的期望 ≈ 0.013' },
+    aria: '随机曝光上 4 个召回模型的 Recall@100'
+  });
+
+  var pct = function (v) { return (v * 100).toFixed(1) + '%'; };
+  C.vgroups('c-share', {
+    groups: ['最冷', '较冷', '中间', '较热', '最热'],
+    series: [
+      { name: '常规测试', cls: 'f1', vals: [0.006, 0.023, 0.052, 0.162, 0.757] },
+      { name: '随机曝光', cls: 'f2', vals: [0.156, 0.169, 0.188, 0.219, 0.268] }
+    ],
+    max: 0.8, ticks: [0, 0.2, 0.4, 0.6, 0.8], tickFmt: function (t) { return Math.round(t * 100) + '%'; },
+    valFmt: pct, labelGroups: [0, 4], groupTip: function (g) { return g + '组'; },
+    aria: '召回目标在五个热度组里的占比'
+  });
+
+  var grp = ['最冷', '较冷', '中间', '较热', '最热'];
+  function gapRows(lq, pl, cls) {
+    return grp.map(function (g, i) {
+      var d = lq[i] - pl[i];
+      return { name: g, v: d, cls: cls, strong: i === 4,
+        tip: '<b>' + g + '组</b><br>logQ 双塔 ' + lq[i].toFixed(4) + '<br>普通双塔 ' + pl[i].toFixed(4) + '<br>差 ' + sgn(d, 4) };
+    });
+  }
+  var sgnTick = function (d) { return function (t) { return t === 0 ? '0' : sgn(t, d); }; };
+  C.hbars('c-gap-reg', {
+    rows: gapRows([0.0033, 0.0275, 0.0568, 0.1681, 0.4750], [0.1982, 0.2183, 0.2263, 0.2269, 0.1248], 'f1'),
+    left: 48, right: 56, domain: [-0.25, 0.4], ticks: [-0.2, 0, 0.2, 0.4], tickFmt: sgnTick(1),
+    valFmt: function (v) { return sgn(v, 3); }, sides: ['普通双塔赢', 'logQ 赢'],
+    aria: '常规测试各热度组 logQ 双塔减普通双塔的组内召回'
+  });
+  C.hbars('c-gap-rnd', {
+    rows: gapRows([0.0002, 0.0006, 0.0023, 0.0107, 0.0944], [0.0190, 0.0231, 0.0220, 0.0272, 0.0224], 'f2'),
+    left: 48, right: 56, domain: [-0.035, 0.09], ticks: [-0.03, 0, 0.03, 0.06, 0.09], tickFmt: sgnTick(2),
+    valFmt: function (v) { return sgn(v, 3); }, sides: ['普通双塔赢', 'logQ 赢'],
+    aria: '随机曝光各热度组 logQ 双塔减普通双塔的组内召回'
+  });
+
+  C.bump('c-bump', {
+    cols: ['稠密', '有偏（曝光计权）', '借用曝光', '自然日志'],
+    colsShort: ['稠密', '有偏', '借用', '自然'],
+    valName: 'Recall@100',
+    models: [
+      { name: 'SASRec', cls: 'dim', ranks: [2, 2, 1, 1], vals: [0.2260, 0.2815, 0.1220, 0.0764] },
+      { name: '打乱语义 ID', cls: 'dim', ranks: [5, 5, 4, 4], vals: [0.1210, 0.1634, 0.0495, 0.0418], tie: [null, null, '和热度只差约 0.00001，未检出差异', null] },
+      { name: '热度', cls: '2', ranks: [1, 1, 5, 5], vals: [0.2571, 0.3862, 0.0495, 0.0334], tie: [null, null, '和打乱语义 ID 只差约 0.00001，未检出差异', null] },
+      { name: '双塔', cls: '3', ranks: [4, 4, 2, 2], vals: [0.1946, 0.2377, 0.1127, 0.0648] },
+      { name: '文本语义 ID', cls: '1', ranks: [3, 3, 3, 3], vals: [0.1996, 0.2549, 0.0811, 0.0467] }
+    ],
+    aria: '5 个召回模型在稠密、有偏、借用曝光、自然日志四种测试上的名次'
+  });
+
+  C.hbars('c-sid', {
+    rows: [
+      { name: '稠密测试', v: 0.0057, cls: 'f1', tip: '<b>稠密测试</b><br>文本语义 ID − 双塔 +0.0057<br>语义 ID 领先' },
+      { name: '借用曝光', v: -0.0317, cls: 'f3', tip: '<b>借用曝光</b><br>文本语义 ID − 双塔 −0.0317<br>双塔领先' }
+    ],
+    domain: [-0.04, 0.015], ticks: [-0.04, -0.03, -0.02, -0.01, 0, 0.01], tickFmt: sgnTick(2),
+    valFmt: function (v) { return sgn(v, 3); }, sides: ['双塔更好', '语义 ID 更好'],
+    aria: '文本语义 ID 减双塔的 Recall@100，稠密测试和借用曝光'
+  });
+})();
+</script>
+</body>
+</html>

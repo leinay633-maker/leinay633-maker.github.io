@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="renderer" content="webkit">
+<title>SQL 数据分析 Agent 后训练 · 瞿才应</title>
+<meta name="description" content="个人项目讲解：给 Qwen3-4B 做多轮 SQL Agent 后训练，用执行结果筛轨迹、筛老师、筛训练题，比较离线训练、在线强化学习和 pass@k 能力边界。">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/css/site.css">
+<link rel="stylesheet" href="../../assets/css/explainer.css">
+<script src="../../assets/js/site.js" defer></script>
+<script src="../../assets/js/charts.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="../../">瞿才应</a>
+    <div class="topbar-right">
+      <nav class="nav" aria-label="页面导航">
+        <a href="../../#projects">全部项目</a>
+      </nav>
+      <button class="theme-btn" type="button"><span class="tb-long">切换</span><span class="tb-mode">深色</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+<article class="ex">
+
+<header class="ex-hero">
+  <a class="ex-back" href="../../#projects">← 回到主页的项目列表</a>
+  <p class="eyebrow mono"><span>个人项目</span> · <span>执行反馈</span></p>
+  <h1>SQL 数据分析 Agent 后训练</h1>
+  <p class="ex-lede">SQL 能跑，答案却可能不对。我给 Qwen3-4B 做多轮数据分析 Agent 的后训练，让模型自己查表、试跑查询，再提交 SQL。在 BIRD 这个公开的问句转 SQL 基准上，用执行结果筛训练轨迹、筛老师、筛训练题，每轮先写好比较规则再上 H20 跑。</p>
+  <ul class="tags"><li>Qwen3-4B</li><li>LoRA</li><li>拒绝采样微调</li><li>DPO</li><li>RLOO</li><li>FSDP2</li><li>vLLM</li></ul>
+  <div class="panel">
+    <div class="panel-bar mono"><span>results</span><span>BIRD · Qwen3-4B</span></div>
+    <dl class="panel-metrics four">
+      <div><dt>官方执行准确率 EX</dt><dd>57.9%</dd><dd class="delta">原版 49.5%，同轮单次作答</dd></div>
+      <div><dt>整条流水线对原版</dt><dd>+8.4<small>点</small></dd><dd class="delta">官方 EX，95% 区间 [+6.2, +10.7]</dd></div>
+      <div><dt>边界题 RL 对离线起点</dt><dd>+2.6<small>点</small></dd><dd class="delta">项目判分，95% 区间 [+0.7, +4.7]</dd></div>
+      <div><dt>RL 对起点的 pass@64</dt><dd>−6.2<small>点</small></dd><dd class="delta">采 64 次至少对一次的概率；采一次对起点反而高 3.7 点</dd></div>
+    </dl>
+  </div>
+</header>
+
+<section class="ex-sec" id="problem">
+  <header class="section-head"><span class="section-no mono">01</span><h2>问题是执行结果能教会模型什么</h2></header>
+  <p>查出了一个看着合理的数，不代表答对了。漏一个过滤条件、多交一列、数错统计对象，SQL 都可能正常执行。模型看到的查询结果，也不会主动告诉它这些口径错在哪里。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>对错可以自动核对</h4><p>把模型 SQL 和标准 SQL 分别执行，比较两边结果，就能给训练轨迹判对错。不用另训奖励模型，也不用逐题人工给奖励。</p></div>
+    <div class="ex-box"><h4>对错信号不解释原因</h4><p>奖励只说最后有没有做对，没告诉模型错的是过滤、关联还是分母。我想看它能把现有能力做稳多少，又能不能学会原来做不对的题。</p></div>
+  </div>
+  <p>这里的 Agent 是能自己调用工具的模型，后训练是在已有指令模型上继续训练。我没有把任务改成直接生成一条 SQL，而是保留查表、看结果、改错、再交答案的过程。</p>
+</section>
+
+<section class="ex-sec" id="method">
+  <header class="section-head"><span class="section-no mono">02</span><h2>怎么做，先固定考场和比较规则</h2></header>
+  <p>模型拿到问题、外部知识提示 evidence 和建表语句。想看实际取值，就自己查。每步输出一个 JSON 动作，最多 4 步，提交也算一步；评测时全程看不到标准 SQL 和标准结果。</p>
+  <div class="ex-steps">
+    <div class="ex-step"><b>schema</b>重新看表结构</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>query</b>试跑只读查询，拿到结果或报错</div>
+    <div class="ex-arrow" aria-hidden="true">→</div>
+    <div class="ex-step"><b>finish</b>提交最终 SQL；还有步数时可按执行报错修改</div>
+  </div>
+  <p>SQL 在独立进程的只读 SQLite 沙箱里执行，只允许单条查询，函数按白名单放行。超时、结果超限、步数用完没提交都算错，不拿截断的结果判对。模型不用每个动作都走一遍，也可以多次查询。</p>
+
+  <h3>数据库整库切开</h3>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>训练和选型</h4><p>训练题池 6682 题、49 个库。开发集 dev 是 615 题、6 个库，用来选训练家族、检查老师门槛。</p></div>
+    <div class="ex-box"><h4>验证和最终测试</h4><p>validation 是 1612 题、14 个库。BIRD 官方 dev 留作本项目的 test，预检后是 1501 题、11 个库。同一个库只在一个集合里。</p></div>
+  </div>
+  <p>官方 dev 原有 1534 题，参考 SQL 有 33 题在沙箱里跑不出完整结果，统一在评测前排除。19 题结果超过一万行，12 题用了被禁止的取当前时间函数，2 题超时；这不是说标准答案写错了。把排除题全部记错的保守结果也同时报告。</p>
+
+  <h3>训练留下哪几步</h3>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>先学做对的整条轨迹</h4><p>轨迹就是一次从读题到提交的完整对话。拒绝采样微调让原版自己做题，只留下执行验证正确的 3435 条，含 568 条真实报错后修好的轨迹。微调时学有效助手动作，报错的动作和后来改掉的错误提交不学。</p></div>
+    <div class="ex-box"><h4>让正确轨迹更容易被选中</h4><p>偏好优化 DPO 把同一题的一条正确轨迹和一条错误轨迹配对，训练模型更偏向正确的那条，共 547 对。监督微调（SFT）只照正确示范学，DPO 会同时用上正确和错误轨迹。</p></div>
+    <div class="ex-box"><h4>让老师补学生不会的题</h4><p>蒸馏是让学生学大模型做对的过程。235B 老师先在 dev 上比原版高至少 5 个点、区间下界也大于零，才生成数据。它补出 832 道学生原采样全错的新题，再接 DPO，得到离线起点 PTR。</p></div>
+    <div class="ex-box"><h4>再用当前模型自己采样</h4><p>在线强化学习 RL 按执行结果奖惩当前模型的轨迹，用同题其他轨迹的平均奖励作基线，这个算法叫 RLOO。LoRA 只更新少量附加参数，每步把新参数交给采样引擎 vLLM；也做了 FSDP2 多卡分片的全参数训练和在线蒸馏对照。</p></div>
+  </div>
+  <p>主比较用比官方执行准确率 EX 更严的项目判分。EX 比结果集合，忽略重复行和顺序；项目判分要求行数、列数、重复行都对上，标准 SQL 要求排序时顺序也要对。两种分数分别报告，不能混加。</p>
+  <p>主要训练条件各跑三个随机种子，改变初始化和数据顺序。区间按数据库整库重抽，种子也配对重抽，这叫聚类 bootstrap。同库的题不是独立样本，不能把它们拆散后算出过窄的区间。</p>
+</section>
+
+<section class="ex-sec" id="film">
+  <header class="section-head"><span class="section-no mono">03</span><h2>讲解片</h2></header>
+  <div class="panel ex-film">
+    <div class="panel-bar mono"><span>explainer</span><span>网页原片 · 10:32</span></div>
+    <button class="video-cover" type="button" data-film="../../films/sql-agent/film.html" data-title="执行结果能教会模型多少" aria-label="播放讲解片《执行结果能教会模型多少》，10 分 32 秒">
+      <img src="../../assets/img/sql-agent-video.webp" width="1280" height="720" alt="" loading="lazy" decoding="async">
+      <span class="video-play" aria-hidden="true">播放</span>
+    </button>
+  </div>
+  <p class="ex-film-alt">在浏览器里按原分辨率播放，带字幕。也可以<a href="https://www.bilibili.com/video/BV1RfxV68EgG/" target="_blank" rel="noopener">在 B 站看</a>。</p>
+</section>
+
+<section class="ex-sec" id="results">
+  <header class="section-head"><span class="section-no mono">04</span><h2>结果，成立和没成立的都留下</h2></header>
+  <p>每轮先写定要比什么，不看完结果再换指标或挑种子。下面和主页用同一组主比较，pass@k 是训练后的独立采样研究，不算一个新训练版本。</p>
+  <div class="panel">
+    <div class="panel-bar mono"><span>preregistered</span><span>主比较与判定</span></div>
+    <table class="ledger">
+      <caption class="sr-only">各轮预先写定的主比较与判定</caption>
+      <thead><tr><th scope="col">版本</th><th scope="col">主比较</th><th scope="col">判定</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">v0.3</td><td>修复式 SFT 对比普通 SFT</td><td><span class="verdict bad"><i aria-hidden="true">✕</i>反向</span></td></tr>
+        <tr><td class="mono">v0.5</td><td>拒绝采样微调对比原始模型</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+        <tr><td class="mono">v0.7</td><td>32B 老师轨迹对比自采</td><td><span class="verdict none"><i aria-hidden="true">–</i>不成立</span></td></tr>
+        <tr><td class="mono">v0.8</td><td>混入 235B 老师轨迹对比自采</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+        <tr><td class="mono">v0.9</td><td>在线 RL 对比起点</td><td><span class="verdict none"><i aria-hidden="true">–</i>未过线</span></td></tr>
+        <tr><td class="mono">v0.10</td><td>全参数 RL 对比 LoRA RL</td><td><span class="verdict bad"><i aria-hidden="true">✕</i>反向</span></td></tr>
+        <tr><td class="mono">v0.11</td><td>边界题 RL 对比起点</td><td><span class="verdict good"><i aria-hidden="true">✓</i>成立</span></td></tr>
+        <tr><td class="mono">v0.12</td><td>在线蒸馏对比离线蒸馏</td><td><span class="verdict none"><i aria-hidden="true">–</i>不成立</span></td></tr>
+        <tr><td class="mono">pass@k</td><td>边界题 RL 对比起点，每题采 64 次</td><td><span class="verdict bad"><i aria-hidden="true">✕</i>收窄了<span class="nb">能力边界</span></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="ex-note">v0.3、v0.5 先写定了比较，还没有统一的判定线，表中按区间概括；v0.5 的主比较在完整 validation 的 1612 题上。从 v0.7 起，成立要求 test 差值均值和 95% 下界都大于零，validation 均值也大于零，主比较用项目判分。</p>
+
+  <div class="cx-card">
+    <h4>官方 EX 从 49.5% 到 57.9%，大头来自离线训练</h4>
+    <p class="cx-sub">v0.11 同一轮、同一套协议复评，1501 题。贪心解码每次选概率最高的下一个文本片段，单次作答，不从多次里挑。训练模型取三个种子的均值；最终 RLb 用事先登记的第 200 步。</p>
+    <div class="cx-legend"><span><i class="bar" style="background:var(--cdim)"></i>原版 B</span><span><i class="bar" style="background:var(--c1)"></i>离线起点 PTR</span><span><i class="bar" style="background:var(--c2)"></i>边界题 RLb</span></div>
+    <div id="c-ex"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th scope="col">阶段</th><th scope="col">官方 EX</th><th scope="col">项目判分</th><th scope="col">EX 答对题数</th></tr></thead>
+        <tbody>
+          <tr><td>原版 B</td><td>49.5%</td><td>45.3%</td><td>743</td></tr>
+          <tr><td>拒绝采样、老师补题、DPO 后的 PTR</td><td>55.2%</td><td>51.9%</td><td>845 / 819 / 822</td></tr>
+          <tr><td>PTR 再做边界题 RL，RLb@200</td><td>57.9%</td><td>54.5%</td><td>873 / 857 / 878</td></tr>
+        </tbody>
+      </table>
+      <p class="ex-note">逐种子题数按 42、43、44 排列。EX 和项目判分各按自己的规则算，不是同一个指标。</p>
+    </div></details>
+  </div>
+  <p>按项目判分拆开，离线起点比原版高约 6.6 个点，边界题 RL 在它上面再加 2.6 个点，最后一步过了预注册检验。按全部 1534 题、排除题一律算错，官方 EX 是 48.4% 到 56.7%。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>全参数分布式 RL 反而更差</h4><p>FSDP2 全参数版对 LoRA 版低 4.2 个点，95% 区间 [−7.1, −1.2]。全参数只试了一个学习率，不能把负结果全归到全参数更新本身。</p></div>
+    <div class="ex-box"><h4>在线蒸馏没证明更好</h4><p>学生自己采样，再让老师逐 token（文本片段）打分的在线蒸馏，比离线补题版 TR 低 0.8 个点，95% 区间 [−3.9, +2.6]。TR 是接 DPO 之前的版本，这个区间跨零，既不能说更好，也不能说等效。</p></div>
+  </div>
+</section>
+
+<section class="ex-sec" id="why">
+  <header class="section-head"><span class="section-no mono">05</span><h2>为什么要筛轨迹、筛老师、筛训练题</h2></header>
+  <h3>先看模型还查不查，再看分数</h3>
+  <div class="cx-card">
+    <h4>只监督最后提交，先查数据的习惯消失了</h4>
+    <p class="cx-sub">每行是用过 query 的题占比。早期两种 SFT 列种子 42；各阶段的题集和范围在表中分开列，不把它当同一批题的消融。</p>
+    <div class="cx-legend"><span><i class="bar" style="background:var(--cdim)"></i>原版、早期 SFT</span><span><i class="bar" style="background:var(--c1)"></i>多轮拒绝采样微调（离线一支）</span><span><i class="bar" style="background:var(--c2)"></i>边界题 RLb</span></div>
+    <div id="c-query"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th scope="col">模型</th><th scope="col">评测范围</th><th scope="col">用过 query 的题</th><th scope="col">占比</th></tr></thead>
+        <tbody>
+          <tr><td>原版 B</td><td>早期验证子集</td><td>256 / 256</td><td>100%</td></tr>
+          <tr><td>普通 SFT，C 种子 42</td><td>同一验证子集</td><td>0 / 256</td><td>0%</td></tr>
+          <tr><td>修复式 SFT，D 种子 42</td><td>同一验证子集</td><td>0 / 256</td><td>0%</td></tr>
+          <tr><td>多轮拒绝采样微调，v0.5</td><td>完整 validation</td><td>1612 / 1612</td><td>100%</td></tr>
+          <tr><td>最终 RLb，种子 42 / 43 / 44</td><td>完整 test，各种子分别算</td><td>均为 1501 / 1501</td><td>均为 100%</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p>早期普通 SFT 和修复式 SFT 都只教最后怎么提交。修复版的 512 对训练数据里，真实修复只有 17 对，约 97% 是按规则造错。种子 42 在 256 道题里有 254 道原样重复提交同一条 SQL；修复版比普通版低 17 到 20 个点。</p>
+  <p>我的理解是，只教最终提交、又大量用规则造错，让模型学成了照抄 SQL，没有学到先查再交的过程。这两点各自的作用没单独检验。后续改为学真实、做对的多轮轨迹，查询恢复了，只算间接验证。</p>
+  <p class="ex-note">最终模型每题都查过数据，不代表每题都成功交卷，仍有没提交的题。这个习惯原版就有，不能说是训练从零教会的。</p>
+
+  <h3>老师的参数多，不保证适合这个考场</h3>
+  <p>32B 老师在同一套协议下没有表现出优势，等量数据蒸馏的主比较没成立。所以换 235B 时，我先要求老师在 dev 上比原版强，过门槛才补学生做不对的题。最后选哪个离线家族也只看 dev，不拿 test 选。</p>
+
+  <h3>在线奖励要有对有错，才有训练信号</h3>
+  <p>RLOO 每步取 16 题，每题采 8 条完整对话。最终结果对上记 1，否则记 0；每条奖励减去同组另外 7 条的平均，全对或全错时优势都是零。边界题是起点采 8 次、做对 1 到 7 次的训练题，只筛训练题池，不看评测题。</p>
+  <div class="cx-card">
+    <h4>同样前 200 步，边界题让训练信号更密</h4>
+    <p class="cx-sub">有信号的组是同题轨迹里有对有错的组，标注单位为 %。两种训练只换了题池，其他设置保持一致。</p>
+    <div class="cx-legend"><span><i class="bar" style="background:var(--c3)"></i>普通在线 RL，v0.9</span><span><i class="bar" style="background:var(--c2)"></i>边界题 RLb，v0.11</span></div>
+    <div id="c-signal"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th scope="col">训练方式</th><th scope="col">种子 42</th><th scope="col">种子 43</th><th scope="col">种子 44</th><th scope="col">统计窗口</th></tr></thead>
+        <tbody>
+          <tr><td>普通在线 RL</td><td>15.6%</td><td>16.2%</td><td>19.2%</td><td>前 200 步</td></tr>
+          <tr><td>边界题 RLb</td><td>48.2%</td><td>45.3%</td><td>49.0%</td><td>前 200 步</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p>信号从约 16% 到 19% 提到 45% 到 49%，但没有证明边界题比普通 RL 的结果更好。两者只差 0.9 个点，95% 区间 [−1.3, +2.7]。普通 RL 在原本那轮检验中没过线，后续同一批模型重评过线也只算探索，不改判。</p>
+
+  <h3>剩下的大头还是结果值不对</h3>
+  <div class="cx-card">
+    <h4>最终系统还错在哪</h4>
+    <p class="cx-sub">v0.11 同轮 test，按项目判分自动分类。最终系统三个种子的题数均值取整；表里保留原版和离线起点作对照。</p>
+    <div id="c-errors"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th scope="col">错因</th><th scope="col">原版 B</th><th scope="col">离线 PTR</th><th scope="col">最终 RLb</th></tr></thead>
+        <tbody>
+          <tr><td>行列数都对，值不对</td><td>309</td><td>320</td><td>312</td></tr>
+          <tr><td>行数不对</td><td>166</td><td>165</td><td>172</td></tr>
+          <tr><td>返回空结果</td><td>88</td><td>102</td><td>98</td></tr>
+          <tr><td>列数不对</td><td>165</td><td>98</td><td>83</td></tr>
+          <tr><td>最终 SQL 执行失败</td><td>27</td><td>5</td><td>11</td></tr>
+          <tr><td>没有提交</td><td>64</td><td>32</td><td>6</td></tr>
+          <tr><td>超出判分上限</td><td>2</td><td>0</td><td>1</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p>从原版 B 到最终 RLb，列数不对、没提交和执行失败的净计数都少了，值不对的总数没少。这是各类错题的净计数，不是说原来的语义错题一道都没修好；错因分析是结果出来后补算的描述，不参与主比较判定。</p>
+  <div class="ex-box">
+    <h4>一道仍然错的真实题</h4>
+    <p>题目问“有三键的分子有多少个”。模型用 <code>COUNT(*)</code> 数了符合条件的键，得到 6；标准 SQL 按 <code>molecule_id</code> 去重，答案是 4。有的分子不止一个三键，查询能跑、数也像真的，但统计对象错了。离线起点和最终模型的三个种子都没修掉这道题。</p>
+  </div>
+</section>
+
+<section class="ex-sec" id="boundary">
+  <header class="section-head"><span class="section-no mono">06</span><h2>一次更准，不代表能做对的范围更大</h2></header>
+  <p>训练结束后，我另写了 pass@k 研究的协议，只采样，不再训练。pass@k 是采 k 次至少做对一次的概率；它需要知道标准答案才能算，不是部署时可以直接拿到的准确率。</p>
+  <div class="cx-card">
+    <h4>采样次数变多，离线起点反超在线 RL</h4>
+    <p class="cx-sub">同一套温度 1、不截断采样，每题 64 段完整对话，沿用项目判分。原版只有一个模型，PTR 和 RLb 各取三个种子的均值；横轴每翻倍一档。</p>
+    <div class="cx-legend"><span><i style="background:var(--cdim)"></i>原版 B</span><span><i style="background:var(--c1)"></i>离线起点 PTR</span><span><i style="background:var(--c2)"></i>边界题 RLb</span></div>
+    <div id="c-passk"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th scope="col">pass@k</th><th scope="col">k=1</th><th scope="col">k=2</th><th scope="col">k=4</th><th scope="col">k=8</th><th scope="col">k=16</th><th scope="col">k=32</th><th scope="col">k=64</th></tr></thead>
+        <tbody>
+          <tr><td>原版 B</td><td>44.1%</td><td>48.5%</td><td>51.6%</td><td>54.1%</td><td>56.4%</td><td>58.7%</td><td>61.0%</td></tr>
+          <tr><td>离线起点 PTR</td><td>50.8%</td><td>57.3%</td><td>62.5%</td><td>66.7%</td><td>70.1%</td><td>73.0%</td><td>75.4%</td></tr>
+          <tr><td>边界题 RLb</td><td>54.5%</td><td>58.0%</td><td>60.8%</td><td>63.2%</td><td>65.4%</td><td>67.4%</td><td>69.3%</td></tr>
+          <tr><td>RLb − PTR，点</td><td>+3.7</td><td>+0.8</td><td>−1.6</td><td>−3.4</td><td>−4.7</td><td>−5.6</td><td>−6.2</td></tr>
+        </tbody>
+      </table>
+      <p class="ex-note">差值在取整前计算，不能直接拿表中已经保留一位小数的百分数相减。温度 1 的 pass@1 和前面的单次贪心分数也不能混用。</p>
+    </div></details>
+  </div>
+  <p>只看 RL 这一步，采一次比 PTR 高 3.7 个点，95% 区间 [+1.8, +5.5]；采 64 次反而低 6.2 个点，区间 [−7.7, −4.5]。两个区间都不跨零，三个种子都在采 2 到 4 次之间被起点反超，按事先写定的规则判为“这个预算下收窄了能力边界”。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>概率集中到了少数写法</h4><p>每题 64 条里不同最终 SQL 的平均条数，PTR 是 20.4，RLb 是 9.9。这里只统一了空白、大小写等后按字符串去重，不是语义多样性，也不是判定依据。</p></div>
+    <div class="ex-box"><h4>离线阶段把范围扩出来了</h4><p>采 64 次，PTR 比原版高 14.5 个点。加上在线 RL 后，整条流水线仍比原版高 8.3 个点。收窄说的是 RL 对它的离线起点，不是整条流水线对原版。</p></div>
+  </div>
+  <p>也不是没学会任何新题。把三个种子的对话合起来，只有 RLb 至少做对过一次的有 25 题，只有 PTR 做对过的有 110 题。事后盲标抽查发现两边都有碰巧算对的 SQL，标注也有分歧，不把这些题数直接当语义新能力，不用抽查改正式判定。</p>
+  <p class="ex-note">“收窄”只限温度 1、每题 64 次的预算。没采到正确 SQL，不代表它彻底忘了这道题；更大预算下会怎样，这个实验没有回答。</p>
+</section>
+
+<section class="ex-sec" id="limits">
+  <header class="section-head"><span class="section-no mono">07</span><h2>能说什么，不能说什么</h2></header>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>能说</h4><ul>
+      <li>在同一套模型、输入和推理预算下，执行验证的离线训练有稳定收益，最终系统官方 EX 高 8.4 个点。</li>
+      <li>边界题 RL 比离线起点更容易一次答对，按项目判分的主比较成立，但没有证明比普通 RL 更好。</li>
+      <li>在这套采样设置和预算下，RL 的一次答对率更高，至少答对一次的题范围却比离线起点小。</li>
+    </ul></div>
+    <div class="ex-box"><h4>不能说</h4><ul>
+      <li>不能拿绝对分数比排行榜。这里不给列描述和代表值，只有固定步数和单次贪心，不是同一套输入与预算。</li>
+      <li>按数据库隔离只防我这次后训练泄漏，不能保证基座预训练没见过 BIRD。</li>
+      <li>test 被多轮重复使用，已经不是一次性的留出集。跨版本没做多重比较校正，结果也不推广到别的基座和数据集。</li>
+      <li>行为恢复、错因净变化和 SQL 字符串集中都是描述，不能各自当成机制的因果证明。</li>
+      <li>没证明更好不等于等效，也不能把实验准确率当线上业务效果。真实业务还要补口径文档、权限、方言和人工确认的评测集。</li>
+    </ul></div>
+  </div>
+  <h3>继续做，我会先改这些</h3>
+  <ul class="points">
+    <li><b>刷新边界题。</b>训练中重新采样，换掉已经稳定会做的题，比较时把预采样耗时一起算进去。</li>
+    <li><b>按错因补口径数据。</b>让模型提交前核对统计对象、分母、过滤条件，而不是继续只加在线 RL 步数。</li>
+    <li><b>先把业务验收补齐。</b>接真实分析任务前，用人工确认过的结果建评测集，再按固定规则比较。</li>
+  </ul>
+</section>
+
+<section class="ex-sec" id="glossary">
+  <header class="section-head"><span class="section-no mono">08</span><h2>术语速查</h2></header>
+  <dl class="ex-gloss">
+    <dt>轨迹</dt><dd>一次从读题到提交的完整多轮对话，包含模型动作、工具结果和报错。</dd>
+    <dt>项目判分</dt><dd>比官方 EX 更严格的结果比较。重复行和行列数要对上，标准 SQL 要求排序时顺序也要一致。</dd>
+    <dt>拒绝采样微调</dt><dd>让模型多次做题，用执行结果筛掉错的，拿做对的有效动作继续训练。</dd>
+    <dt>DPO</dt><dd>同题正确和错误轨迹配成偏好对，让模型相对更偏向正确的那条。</dd>
+    <dt>LoRA</dt><dd>冻结原模型，训练少量附加参数。这里用于离线微调和在线 RL，更新后采样端直接加载。</dd>
+    <dt>FSDP2</dt><dd>把参数、梯度和优化器状态分到多张卡，训练时再按需拼起来，用来做全参数分布式对照。</dd>
+    <dt>RLOO</dt><dd>用同题其他轨迹的平均奖励作基线，奖励高于基线的加强，低于基线的压低，不另训价值网络。</dd>
+    <dt>聚类 bootstrap</dt><dd>按数据库整库有放回地重抽，配对种子也重抽，用差值分布估区间，保留同库题之间的相关性。</dd>
+    <dt>pass@k</dt><dd>采 k 次至少做对一次的概率。这里由每题 64 条对话估计，需要标准答案判对错，部署时不知道该挑哪一条。</dd>
+  </dl>
+  <p class="links"><a href="https://github.com/leinay633-maker/sql-agent-post-training" target="_blank" rel="noopener">GitHub 仓库</a> · 代码、预注册协议、配置和测试</p>
+</section>
+
+<section class="ex-sec ex-end" id="more">
+  <header class="section-head"><span class="section-no mono">→</span><h2>其他项目</h2></header>
+  <ul class="ex-more">
+    <li><a href="../rec-eval/"><b>推荐模型离线评测与随机曝光检验</b><span>换一份曝光方式，模型比较会不会变</span></a></li>
+    <li><a href="../costrank/"><b>成本约束下的机器学习选股</b><span>扣掉交易成本还剩多少超额</span></a></li>
+    <li><a href="../mini-seckill/"><b>Mini 秒杀高并发下单系统</b><span>库存不超卖、下单不重复</span></a></li>
+  </ul>
+</section>
+
+</article>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner mono">
+    <span>© 2026 瞿才应</span>
+    <a href="../../" style="color:inherit">回到主页</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var C = window.Charts;
+  var pct = function (v) { return (v * 100).toFixed(1) + '%'; };
+  var pctTick = function (v) { return Math.round(v * 100) + '%'; };
+  var totals = {
+    tasks: 1501, B_ex: 743,
+    PTR_ex: [845, 819, 822],
+    RLb_ex: [873, 857, 878]
+  };
+  function mean(a) { return a.reduce(function (s, v) { return s + v; }, 0) / a.length; }
+  C.hbars('c-ex', {
+    rows: [
+      { name: '原版 B', v: totals.B_ex / totals.tasks, cls: 'fdim' },
+      { name: '离线 PTR', v: mean(totals.PTR_ex) / totals.tasks, cls: 'f1', strong: true },
+      { name: '边界 RLb', v: mean(totals.RLb_ex) / totals.tasks, cls: 'f2', strong: true }
+    ],
+    domain: [0, 0.65], ticks: [0, 0.2, 0.4, 0.6], tickFmt: pctTick, valFmt: pct,
+    aria: '同轮官方执行准确率，原版 49.5%，离线 PTR 55.2%，边界题 RLb 57.9%'
+  });
+
+  C.hbars('c-query', {
+    rows: [
+      { name: '原版 B', v: 1, cls: 'fdim', tip: '<b>原版 B</b><br>早期验证子集，用过 query 的题 256 / 256' },
+      { name: '普通 SFT', v: 0, cls: 'fdim', tip: '<b>普通 SFT，C 种子 42</b><br>同一验证子集，0 / 256' },
+      { name: '修复式 SFT', v: 0, cls: 'fdim', tip: '<b>修复式 SFT，D 种子 42</b><br>同一验证子集，0 / 256' },
+      { name: '多轮微调', v: 1, cls: 'f1', tip: '<b>执行验证的多轮拒绝采样微调</b><br>v0.5 完整 validation，1612 / 1612' },
+      { name: '边界 RLb', v: 1, cls: 'f2', tip: '<b>最终 RLb</b><br>种子 42、43、44 分别都是 1501 / 1501<br>查过数据不代表成功提交' }
+    ],
+    left: 90, domain: [0, 1.08], ticks: [0, 0.5, 1], tickFmt: pctTick,
+    valFmt: function (v) { return Math.round(v * 100) + '%'; },
+    aria: '查询行为，早期原版 100%，普通和修复式 SFT 种子 42 都是 0%，后续多轮微调和最终 RLb 都是 100%；不同评测范围分开列'
+  });
+
+  C.vgroups('c-signal', {
+    groups: ['种子 42', '种子 43', '种子 44'],
+    series: [
+      { name: '普通 RL（%）', cls: 'f3', vals: [15.6, 16.2, 19.2] },
+      { name: '边界 RLb（%）', cls: 'f2', vals: [48.2, 45.3, 49.0] }
+    ],
+    max: 60, ticks: [0, 20, 40, 60],
+    tickFmt: function (v) { return v + '%'; }, valFmt: C.fixed(1),
+    labelGroups: [0, 1, 2],
+    aria: '前 200 步有信号组占比，普通 RL 三个种子 15.6、16.2、19.2%，边界 RLb 为 48.2、45.3、49.0%'
+  });
+
+  C.hbars('c-errors', {
+    rows: [
+      { name: '值不对', v: 312, cls: 'f2', strong: true },
+      { name: '行数不对', v: 172, cls: 'f2' },
+      { name: '返回空结果', v: 98, cls: 'f2' },
+      { name: '列数不对', v: 83, cls: 'f2' },
+      { name: '执行失败', v: 11, cls: 'f2' },
+      { name: '没有提交', v: 6, cls: 'f2' },
+      { name: '超出判分上限', v: 1, cls: 'f2' }
+    ],
+    left: 108, right: 44, domain: [0, 350], ticks: [0, 100, 200, 300],
+    tickFmt: C.fixed(0), valFmt: function (v) { return v + ' 题'; },
+    aria: '最终 RLb 的错因均值，值不对 312 题，行数不对 172，空结果 98，列数不对 83，执行失败 11，没有提交 6，超限 1'
+  });
+
+  var ks = [1, 2, 4, 8, 16, 32, 64];
+  function pts(values) { return values.map(function (v, i) { return [ks[i], v]; }); }
+  C.lines('c-passk', {
+    series: [
+      { name: '原版 B', cls: 'dim', markers: true, label: 'B 61.0%',
+        pts: pts([0.44052923051299137, 0.48461475418504063, 0.5159775212016077, 0.541250080781741, 0.5640662439283427, 0.5865850331008771, 0.6095936042638241]) },
+      { name: '离线 PTR', cls: '1', markers: true, label: 'PTR 75.4%',
+        pts: pts([0.507897512769265, 0.5726355489638302, 0.6246956081332978, 0.666579990810683, 0.7008408080966309, 0.7296633196332589, 0.7543859649122807]) },
+      { name: '边界 RLb', cls: '2', markers: true, label: 'RLb 69.3%',
+        pts: pts([0.5452198534310458, 0.5802098644995047, 0.6083412676295317, 0.6324295485483966, 0.6541397346108052, 0.6740714556156022, 0.6926493448811902]) }
+    ],
+    x: { domain: [1, 64], ticks: ks, log2: true },
+    y: { domain: [0.4, 0.8], ticks: [0.4, 0.5, 0.6, 0.7, 0.8], fmt: pctTick },
+    valFmt: pct, xName: function (k) { return '采 ' + k + ' 次，pass@' + k; },
+    endLabels: true,
+    aria: '温度 1 的 pass@k 曲线，采一次 RLb 高于 PTR，采 64 次 PTR 75.4%，RLb 69.3%，原版 61.0%'
+  });
+})();
+</script>
+</body>
+</html>

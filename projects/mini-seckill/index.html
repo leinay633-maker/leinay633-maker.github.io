@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="renderer" content="webkit">
+<title>Mini 秒杀高并发下单系统 · 瞿才应</title>
+<meta name="description" content="个人项目讲解。围绕秒杀下单主链路，用原子预扣、可靠消息和数据库事务防超卖、防重复，再用同机压测与故障注入核对性能和一致性。">
+<meta name="robots" content="noindex">
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}})()</script>
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="../../assets/css/site.css">
+<link rel="stylesheet" href="../../assets/css/explainer.css">
+<script src="../../assets/js/site.js" defer></script>
+<script src="../../assets/js/charts.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">跳到正文</a>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="../../">瞿才应</a>
+    <div class="topbar-right">
+      <nav class="nav" aria-label="页面导航">
+        <a href="../../#projects">全部项目</a>
+      </nav>
+      <button class="theme-btn" type="button"><span class="tb-long">切换</span><span class="tb-mode">深色</span></button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+<article class="ex">
+
+<header class="ex-hero">
+  <a class="ex-back" href="../../#projects">← 回到主页的项目列表</a>
+  <p class="eyebrow mono"><span>个人项目</span> · <span>高并发下单</span></p>
+  <h1>Mini 秒杀高并发下单系统</h1>
+  <p class="ex-lede">我只做秒杀下单这一条主链路。库存不能超卖，同一用户不能重复下单，瞬时流量不能打穿数据库。Redis 预扣后先持久化本地消息，接纳成功才返回排队中，MySQL 订单事务提交才算下单成功；性能看同机对照，异常路径用暂停和强杀进程来验证。</p>
+  <ul class="tags"><li>Java 17</li><li>Spring Boot 3</li><li>Redis Lua</li><li>RabbitMQ</li><li>MySQL</li><li>k6</li></ul>
+  <div class="panel">
+    <div class="panel-bar mono"><span>results</span><span>下单主链路</span></div>
+    <dl class="panel-metrics four">
+      <div><dt>超卖 / 重复下单</dt><dd>0</dd><dd class="delta">各轮压测的数据库订单事实</dd></div>
+      <div><dt>售罄尾部 p99</dt><dd>12<small>ms</small></dd><dd class="delta">百分之九十九分位，基线 98 ms；同机单实例</dd></div>
+      <div><dt>故障与负载场景</dt><dd>9/9</dd><dd class="delta">同机三个 JVM，也就是三个 Java 应用进程</dd></div>
+      <div><dt>单实例入口稳定档</dt><dd>4,000<small>/s</small></dd><dd class="delta">两组独立对照各到此档，不是落库速率</dd></div>
+    </dl>
+  </div>
+</header>
+
+<section class="ex-sec" id="problem">
+  <header class="section-head"><span class="section-no mono">01</span><h2>先把下单成功的边界定清楚</h2></header>
+  <p>不能把“缓存扣成功”当成“订单成功”。Redis、消息队列和 MySQL 各有自己的提交时刻，中间可能丢响应、重复投递，也可能进程突然停住。入口要快，但每条异常路径都得能回到数据库事实。</p>
+  <p>资格 token 是下单前领到的一次性凭证。Redis Lua 把库存判断和扣减放进一次执行，中间不留给其他请求插进来的空隙；幂等表示重复请求也不多产生一笔业务结果。</p>
+
+  <h3>下单主链路</h3>
+  <div class="ex-steps" aria-label="领资格、原子预扣、本地消息、消息队列、事务落库">
+    <div class="ex-step"><b>领资格</b>校验活动和限流，发一次性 token 与隐藏下单路径</div>
+    <div class="ex-arrow" aria-hidden="true"><span>→</span></div>
+    <div class="ex-step"><b>原子预扣</b>验路径与 token、用户幂等挡重复，Lua 扣库存并登记在途请求</div>
+    <div class="ex-arrow" aria-hidden="true"><span>→</span></div>
+    <div class="ex-step"><b>先持久化</b>本地消息表写下发送意图，异常时还有重试依据</div>
+    <div class="ex-arrow" aria-hidden="true"><span>→</span></div>
+    <div class="ex-step"><b>排队削峰</b>投 RabbitMQ 消息队列，接口返回排队中</div>
+    <div class="ex-arrow" aria-hidden="true"><span>→</span></div>
+    <div class="ex-step"><b>事务落库</b>抢占消息、插订单、条件扣库存、完成消息一起提交</div>
+  </div>
+  <details class="cx-data"><summary>看链路核对表</summary><div class="cx-scroll">
+    <table class="cx-table">
+      <thead><tr><th>环节</th><th>责任</th><th>失败时的处理</th></tr></thead>
+      <tbody>
+      <tr><td>资格与幂等</td><td>限制入口流量、挡重复请求</td><td>业务拒绝，不承诺下单成功</td></tr>
+      <tr><td>Redis 预扣</td><td>扣减与在途登记一起完成</td><td>不确定时保留登记</td></tr>
+      <tr><td>本地消息表</td><td>保存可恢复的发送意图</td><td>核对真实写入，不直接退库存</td></tr>
+      <tr><td>RabbitMQ</td><td>削峰、投递与重投</td><td>允许重复，消费端幂等收敛</td></tr>
+      <tr><td>MySQL 事务</td><td>订单、库存、消息的最终事实</td><td>一起提交或一起回滚</td></tr>
+      </tbody>
+    </table>
+  </div></details>
+
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>数据库是最后防线</h4><p>扣库存必须满足 <code>available_stock &gt; 0</code>，订单联合唯一索引挡重复。消费者抢占消息也在订单事务里，进程中途退出会一起回滚，不留下单独提交的“消费中”。</p></div>
+    <div class="ex-box"><h4>缓存和确认都排在提交之后</h4><p>事务提交后才写 Redis 订单状态，再向 RabbitMQ 确认消费完成。缓存写失败、确认响应丢失，都不能把已提交的成功单改成失败。用户查询优先读 MySQL。</p></div>
+  </div>
+  <p>Redis 不可用时我选拒单，不让流量绕过资格、幂等和库存校验直接打 MySQL。恢复时也不是能连上就放量，任一商品核对不过，整个实例继续拒单。</p>
+</section>
+
+<section class="ex-sec" id="selltail">
+  <header class="section-head"><span class="section-no mono">02</span><h2>售罄后的慢请求少了</h2></header>
+  <p>售罄尾部 p99 从 98 ms 降到 12 ms。p99 是响应耗时的百分之九十九分位，用来看少数慢请求。这里统计领资格和下单两类 HTTP 请求，不是订单最终完成的耗时。</p>
+  <div class="cx-card">
+    <h4>售罄尾部的整体 HTTP p99</h4>
+    <p class="cx-sub">同一台 Apple M1（8 核、16 GiB）、单实例；每秒 300 次迭代，持续 30 秒，初始库存 100；每版本三轮，取逐指标中位数。主场景关闭限流和防刷。</p>
+    <div class="cx-legend"><span><i class="bar" style="background:var(--cdim)"></i>改造前</span><span><i class="bar" style="background:var(--c3)"></i>改造后</span></div>
+    <div id="c-tail"></div>
+    <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th>指标</th><th>基线</th><th>完整优化版</th></tr></thead>
+        <tbody>
+        <tr><td>整体 HTTP p99</td><td>98.27 ms</td><td>12.04 ms</td></tr>
+        <tr><td>最终成功订单</td><td>100</td><td>100</td></tr>
+        <tr><td>用户重复订单组</td><td>0</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p>原来由 Java 一个个试库存分桶，快卖完时要反复往返 Redis。改成一次 Lua 扫完分桶，再用本地售罄标记快速拒绝，减少尾部的无效工作。完整优化版还包含高频日志异步化等改动。</p>
+  <p class="ex-note">这是基线对完整优化版，不是只开单次 Lua 的单点实验。卖光后很多迭代在领资格时结束，不再下单。不能把 12 ms 当作库存充足时的接口延迟，也不能把整体收益全归给 Lua。</p>
+</section>
+
+<section class="ex-sec" id="throughput">
+  <header class="section-head"><span class="section-no mono">03</span><h2>两次提高入口稳定档，瓶颈各不相同</h2></header>
+  <p>入口稳定档是恒定加压时还能稳定承接的最高到达率。容量测试每档 60 秒，每次迭代是新用户先领资格、再下单；系统错误率或压测端丢弃超过 1% 就停，最终对账也必须通过。它不是 HTTP QPS，更不是持续落库能力。</p>
+  <div class="cx-duo">
+    <div class="cx-card">
+      <h4>Linux 开发容器上，削减入口同步 SQL</h4>
+      <p class="cx-sub">单实例，数据库连接总预算保持 40；同机新旧版本交错。只比较这组的低磁盘卡顿窗口。</p>
+      <div class="cx-legend"><span><i class="bar" style="background:var(--cdim)"></i>改造前</span><span><i class="bar" style="background:var(--c3)"></i>改造后</span></div>
+      <div id="c-sql"></div>
+      <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+        <table class="cx-table">
+          <thead><tr><th>项目</th><th>改造前</th><th>改造后</th></tr></thead>
+          <tbody>
+          <tr><td>入口稳定档</td><td>3,000 /s</td><td>4,000 /s</td></tr>
+          <tr><td>热活动成功迭代的入口同步 SQL</td><td>5 次</td><td>2 次，另有活动回源</td></tr>
+          <tr><td>数据库连接总预算</td><td>40</td><td>40</td></tr>
+          </tbody>
+        </table>
+      </div></details>
+    </div>
+    <div class="cx-card">
+      <h4>独占云服务器上，扩大 channel 缓存</h4>
+      <p class="cx-sub">channel 是消息连接里的逻辑通道。单实例，固定 40 条数据库连接，中间件数据放内存盘；同一个包只改缓存参数，交错三轮。</p>
+      <div class="cx-legend"><span><i class="bar" style="background:var(--cdim)"></i>改造前</span><span><i class="bar" style="background:var(--c3)"></i>改造后</span></div>
+      <div id="c-channel"></div>
+      <details class="cx-data"><summary>看数据表</summary><div class="cx-scroll">
+        <table class="cx-table">
+          <thead><tr><th>项目</th><th>改造前</th><th>改造后</th></tr></thead>
+          <tbody>
+          <tr><td>入口稳定档</td><td>3,500 /s</td><td>4,000 /s</td></tr>
+          <tr><td>发布端 channel 缓存</td><td>25</td><td>256</td></tr>
+          <tr><td>各轮最高通过档</td><td>3,500 /s，三轮一致</td><td>4,000 /s，三轮一致</td></tr>
+          </tbody>
+        </table>
+      </div></details>
+    </div>
+  </div>
+  <p class="ex-note">两张图来自不同环境，不横比绝对吞吐，也不串起来算累计提升。入口 SQL 那组的磁盘卡顿分组是看过数据后定的，结论限于低卡顿窗口，失败档和缺采样的档都保留在报告里。</p>
+
+  <h3>入口等连接，先减少对连接的需求</h3>
+  <p>线程栈显示大量入口线程停在数据库借连接上。我没有扩池，而是缓存活动元数据、让首条消息直接以“发送中”插入，省掉两次活动读取和一次单独的状态更新。热活动命中时，入口同步 SQL 从 5 次降到 2 次，不含消费者和后台任务。</p>
+  <p>Redis 未命中时查询历史订单这一步仍保留。缓存没记录不等于新用户，可能是旧订单的缓存过期或丢失；为了吞吐删掉回源，可能给老用户再发资格、多占库存。</p>
+  <p class="ex-note">消融里，省掉状态更新的收益更大。我的理解是，它省了一次独立写事务提交，比省主键读更划算；提交耗时没单独检验。</p>
+
+  <h3>Redis 变快后，真正堵住的是消息发布</h3>
+  <p>channel 是 RabbitMQ 连接里的逻辑通道。并发发布时，缓存不足就反复新建、关闭带发送确认的通道。我先试过关库存分桶，Redis CPU 降了，入口稳定档却没动；按入口分阶段耗时核对，两组数据库阶段的耗时接近，差距出在首次发消息。</p>
+  <p>缓存从 25 调到 256 后，同一组交错压测的稳定档从 3,500 /s 提到 4,000 /s。参数改完还重跑了三 JVM 九个故障场景，仍全部通过。</p>
+</section>
+
+<section class="ex-sec" id="coordination">
+  <header class="section-head"><span class="section-no mono">04</span><h2>进程停在中间，谁还有权改库存</h2></header>
+  <p>多实例最容易出错的地方，是旧进程醒来继续写。锁过期、读到的库存快照变旧，或者预扣成功但消息没落库，都不能靠“异常就加回库存”处理。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>旧快照不能直接写回</h4><p>租约是临时写权限。在 Redis 写回的同一个 Lua 里，重新核对租约持有者、库存版本、在途登记为空。读数据库之后只要有新预扣，版本就变了，旧快照作废。</p></div>
+    <div class="ex-box"><h4>写库结果不明，先抢唯一键</h4><p>在途登记记住尚未落库的预扣。恢复者用同一个请求号插“已取消”墓碑，也就是取消记录，和真实消息争唯一键。只有墓碑先写成，才退库存；真实消息已提交就不退。退库存和删登记一起执行，最多退一次。</p></div>
+    <div class="ex-box"><h4>迟到确认不能改新状态</h4><p>发送按消息行认领，每次换新 token 并设租约。回调要同时匹配 token、状态和数据库时间，旧回调改不动新一轮。旧线程仍可能再发一次消息，重复靠消费端幂等收敛。</p></div>
+    <div class="ex-box"><h4>安全不等于立即修好</h4><p>持续有在途请求或版本变化，对账可能一直跳过。我选晚修、不修错。协调元数据全部丢失时，也不凭 MySQL 在线盲目重建，入口继续拒单，先停写核对。</p></div>
+  </div>
+
+  <div class="cx-card">
+    <h4>同机三个 JVM 的九个故障与负载场景</h4>
+    <p class="cx-sub">三个应用进程共用 MySQL、Redis 和 RabbitMQ。故障点命中后才发暂停或强杀信号；每组停掉全部 JVM，再做最终跨系统核对。独占云服务器上的复测全部通过。</p>
+    <div class="cx-scroll">
+      <table class="ex-matrix">
+        <thead><tr><th>场景</th><th>实际验证的结果</th><th>判定</th></tr></thead>
+        <tbody>
+        <tr><td>负载中修复</td><td>只改坏 Redis 总量，负载期间受保护写回生效，停流后库存守恒</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>有效租约、过时快照</td><td>旧修复者暂停后有新下单，醒来写回被库存版本校验拒绝</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>旧租约持有者醒来</td><td>写回被租约校验拒绝，也删不掉接任者的锁</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>预扣后暂停</td><td>墓碑取消，库存只退一次；旧 INSERT 撞唯一键，同用户新请求仍能成单</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>预扣后强杀</td><td>其他节点清算孤儿预扣，库存只退一次，重启后可正常接纳</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>消息提交后强杀</td><td>读到已提交消息，不退库存；其他节点补发，最终成单</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>发送认领交错</td><td>新旧 token 不同，迟到确认改动 0 行，最终只有一单</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>负载中消费者丢失</td><td>暂停、强杀再重启，积压排空后已持久化接纳都有成功订单</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        <tr><td>稀缺库存竞争</td><td>410 个用户抢 41 件，41 单成功、369 次售罄、库存余 0</td><td class="ok"><i aria-hidden="true">✓</i>通过</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="cx-data"><summary>看最终核对项</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th>核对项</th><th>九组的最终结果</th></tr></thead>
+        <tbody>
+        <tr><td>库存守恒</td><td>总量 = 可用 + 已售，已售 = 成功订单</td></tr>
+        <tr><td>业务键与订单号重复</td><td>0</td></tr>
+        <tr><td>在途登记与期限集合</td><td>清空</td></tr>
+        <tr><td>消息终态与订单事实</td><td>关联一致，没有悬挂消息</td></tr>
+        <tr><td>消息队列</td><td>排空</td></tr>
+        <tr><td>Redis 与 MySQL 剩余库存</td><td>一致</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p class="ex-note">这是进程信号下的同机正确性验证，不是多机集群性能、网络分区或主从切换测试。夹具为了让交错可控，回收期限和扫描周期比常规配置短，不能把它们当生产恢复时限。</p>
+</section>
+
+<section class="ex-sec" id="capacity">
+  <header class="section-head"><span class="section-no mono">05</span><h2>拐点移动了，后端仍会积压</h2></header>
+  <p>入口能接住请求，不代表订单能按同样速率持续完成。下面只看 channel 缓存这一组，随着到达率接近拐点，尾延迟快速上涨。</p>
+  <div class="cx-card">
+    <h4>到达率上升时，整体 HTTP p99 怎么变</h4>
+    <p class="cx-sub">独占云服务器，单 JVM，固定 40 条数据库连接，中间件数据放内存盘。横轴是迭代到达率，纵轴是毫秒；每点取该档三轮 p99 的中位数，失败档也保留。</p>
+    <div class="cx-legend"><span><i style="background:var(--cdim)"></i>改造前，缓存 25</span><span><i style="background:var(--c3)"></i>改造后，缓存 256</span></div>
+    <div id="c-knee"></div>
+    <details class="cx-data"><summary>看三轮原始值与通过数</summary><div class="cx-scroll">
+      <table class="cx-table">
+        <thead><tr><th>缓存</th><th>到达率 /s</th><th>首轮 p99 ms</th><th>第二轮</th><th>第三轮</th><th>中位数</th><th>通过数</th></tr></thead>
+        <tbody>
+        <tr><td>25</td><td>2,000</td><td>21.25</td><td>28.44</td><td>22.03</td><td>22.03</td><td>3/3</td></tr>
+        <tr><td>25</td><td>3,000</td><td>83.19</td><td>69.13</td><td>109.21</td><td>83.19</td><td>3/3</td></tr>
+        <tr><td>25</td><td>3,500</td><td>276.66</td><td>263.74</td><td>506.59</td><td>276.66</td><td>3/3</td></tr>
+        <tr><td>25</td><td>4,000</td><td>1,539.53</td><td>2,194.13</td><td>1,548.74</td><td>1,548.74</td><td>0/3</td></tr>
+        <tr><td>256</td><td>2,000</td><td>26.18</td><td>17.47</td><td>20.13</td><td>20.13</td><td>3/3</td></tr>
+        <tr><td>256</td><td>3,000</td><td>63.01</td><td>72.42</td><td>78.79</td><td>72.42</td><td>3/3</td></tr>
+        <tr><td>256</td><td>3,500</td><td>129.34</td><td>178.62</td><td>173.08</td><td>173.08</td><td>3/3</td></tr>
+        <tr><td>256</td><td>4,000</td><td>290.94</td><td>345.35</td><td>457.37</td><td>345.35</td><td>3/3</td></tr>
+        </tbody>
+      </table>
+    </div></details>
+  </div>
+  <p>缓存 256 时，4,000 /s 三轮都通过，但压测窗口内每秒只落库 1,951 到 2,024 单，队列峰值有 10.3 到 10.7 万条。停流后排空才能收齐，不能把入口稳定档写成持续 TPS。</p>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>协议的往返压回去了，CPU 代价还在</h4><p>把接纳时的读登记、清登记和排队状态投影合成一次 Lua 后，成功下单热路径的 Redis 往返由 5 次回到 3 次，和协议改造前相同。独占云服务器同档对照里，Redis CPU 仍是改造前的 1.6 到 1.9 倍。正确性校验并不免费。</p></div>
+    <div class="ex-box"><h4>同机多开 JVM 没有变快</h4><p>调大 channel 缓存之前的另一组独立对照里，同样的 40 条连接，单 JVM 用满，对比三 JVM 拆成 14 / 13 / 13。单 JVM 三轮稳定档都是 3,500 /s，三 JVM 是 3,000、3,000、2,000 /s。池子拆小、消费者更多、JVM 多占 CPU，增加了竞争。</p></div>
+  </div>
+  <p>这也是我分别测入口、负载期落库、队列峰值和停流排空的原因。只盯一个接口延迟，可能只是把压力从入口移到了后面。</p>
+</section>
+
+<section class="ex-sec" id="limits">
+  <header class="section-head"><span class="section-no mono">06</span><h2>能说什么，不能说什么</h2></header>
+  <div class="ex-boxes">
+    <div class="ex-box"><h4>能说</h4><ul>
+      <li>各轮压测的数据库订单没有超卖、没有用户重复订单；优化版的业务失败有持久化记录。</li>
+      <li>同机对照里，完整优化版降低售罄尾延迟；两组独立改造提高了各自的入口稳定档。</li>
+      <li>现行协调协议在同机三 JVM 的九个故障与负载场景下通过最终核对。</li>
+    </ul></div>
+    <div class="ex-box"><h4>不能说</h4><ul>
+      <li>零超卖不等于入口永远恰好受理库存数。历史轮次有多受理后被 MySQL 拒绝的订单，也有基线消息没有完整闭环。</li>
+      <li>不承诺消息只发一次。重复物理投递允许发生，业务结果靠唯一键和事务收敛。</li>
+      <li>短窗口稳定档不是生产容量。独占云服务器的中间件数据放内存盘，不能代表真实云盘的持久化落库能力。</li>
+      <li>没有线上用户，也没有多主机性能、网络分区、Redis 或 MySQL 主从切换的实测结论。</li>
+    </ul></div>
+  </div>
+  <h3>要继续部署，先补这些边界</h3>
+  <ul class="points">
+    <li><b>Redis</b>现行协议只支持单主，协调元数据不能丢失或被驱逐。Redis Cluster 和“MQ 失败就同步下单”旁路会拒绝启动。</li>
+    <li><b>升级和管理</b>协议升级要停掉所有旧进程再一起切换；已有库存不能在线覆盖，终态消息不能原地重放，取消墓碑还没有自动清理协议。</li>
+    <li><b>生产化</b>支付、商品中心、真实风控和跨主机容灾没做。我会先按真实磁盘、下游余量和消费者并发重新压测，不用同机数据推算扩容倍数。</li>
+  </ul>
+</section>
+
+<section class="ex-sec" id="glossary">
+  <header class="section-head"><span class="section-no mono">07</span><h2>术语速查</h2></header>
+  <dl class="ex-gloss">
+    <dt>p99</dt><dd>响应耗时的百分之九十九分位。用来看尾部慢请求，不是平均耗时，也不自动代表最终落库耗时。</dd>
+    <dt>幂等</dt><dd>同一个业务请求重复执行，也不多产生一笔订单或多扣一份库存。入口去重和数据库唯一约束一起兜底。</dd>
+    <dt>Redis Lua</dt><dd>在 Redis 内一次执行库存校验和扣减，不让其他请求穿插。脚本报错不会自动回滚已执行的写，所以预检放在写入之前。</dd>
+    <dt>本地消息表</dt><dd>MySQL 中保存消息发送意图和状态的表。投递失败后仍有持久化记录可重试，不把 MQ 当订单事实源。</dd>
+    <dt>租约</dt><dd>有有效期的临时权限。旧进程醒来时必须由被写的资源重新核对，不能只看它曾经拿到过锁。</dd>
+    <dt>在途登记</dt><dd>记录已经 Redis 预扣、但尚未明确交给数据库消息的请求。恢复者用它找出悬空的库存责任。</dd>
+    <dt>取消墓碑</dt><dd>同请求号的一条取消记录，和真实消息争数据库唯一键。先取消成功，才确定迟到写入不能再把这笔请求受理。</dd>
+    <dt>channel</dt><dd>RabbitMQ 连接内的逻辑通道。缓存太小，并发发送会不断新建、关闭通道，拖慢首次发布。</dd>
+    <dt>入口稳定档</dt><dd>按固定窗口阶梯加压，错误、丢弃和最终对账都满足规则的最高到达率。表示入口短时承载，不表示无限期持续完成订单。</dd>
+  </dl>
+  <p class="links"><a href="https://github.com/leinay633-maker/mini-seckill" target="_blank" rel="noopener">GitHub 仓库</a></p>
+</section>
+
+<section class="ex-sec ex-end" id="more">
+  <header class="section-head"><span class="section-no mono">→</span><h2>其他项目</h2></header>
+  <ul class="ex-more">
+    <li><a href="../rec-eval/"><b>短视频推荐离线评测</b><span>换成随机曝光，模型间的差距会怎么变</span></a></li>
+    <li><a href="../sql-agent/"><b>SQL 数据分析 Agent 后训练</b><span>用执行反馈检验模型能学到什么</span></a></li>
+    <li><a href="../costrank/"><b>成本约束下的机器学习选股</b><span>扣掉交易成本，再看样本外超额</span></a></li>
+  </ul>
+</section>
+
+</article>
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner mono">
+    <span>© 2026 瞿才应</span>
+    <a href="../../" style="color:inherit">回到主页</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var C = window.Charts;
+  var integer = function (v) { return Math.round(v).toLocaleString('en-US'); };
+  var rate = function (v) { return integer(v) + ' /s'; };
+
+  C.hbars('c-tail', {
+    rows: [
+      { name: '基线', v: 98.27, cls: 'fdim' },
+      { name: '完整优化', v: 12.04, cls: 'f3', strong: true }
+    ],
+    left: 70, right: 70, domain: [0, 110], ticks: [0, 50, 100],
+    tickFmt: function (v) { return v + ' ms'; },
+    valFmt: function (v) { return v.toFixed(2) + ' ms'; },
+    aria: '同机单实例售罄尾部，整体 HTTP p99 从 98.27 毫秒降到 12.04 毫秒'
+  });
+
+  C.hbars('c-sql', {
+    rows: [
+      { name: '改造前', v: 3000, cls: 'fdim' },
+      { name: '减少 SQL', v: 4000, cls: 'f3', strong: true }
+    ],
+    left: 72, right: 76, domain: [0, 4800], ticks: [0, 2000, 4000],
+    tickFmt: integer, valFmt: rate,
+    aria: 'Linux 开发容器单实例，削减入口同步 SQL 后稳定档由每秒 3000 提到 4000 次迭代'
+  });
+
+  C.hbars('c-channel', {
+    rows: [
+      { name: '缓存 25', v: 3500, cls: 'fdim' },
+      { name: '缓存 256', v: 4000, cls: 'f3', strong: true }
+    ],
+    left: 72, right: 76, domain: [0, 4800], ticks: [0, 2000, 4000],
+    tickFmt: integer, valFmt: rate,
+    aria: '独占云服务器单实例，发布端 channel 缓存改为 256 后稳定档由每秒 3500 提到 4000 次迭代'
+  });
+
+  C.lines('c-knee', {
+    series: [
+      { name: '改造前，缓存 25', cls: 'dim', label: '缓存 25', markers: true,
+        pts: [[2000, 22.03], [3000, 83.19], [3500, 276.66], [4000, 1548.74]] },
+      { name: '改造后，缓存 256', cls: '3', label: '缓存 256', markers: true,
+        pts: [[2000, 20.13], [3000, 72.42], [3500, 173.08], [4000, 345.35]] }
+    ],
+    x: { domain: [2000, 4000], ticks: [2000, 3000, 3500, 4000], ticksCompact: [2000, 3000, 4000], fmt: integer },
+    y: { domain: [0, 2300], ticks: [0, 500, 1000, 1500, 2000], fmt: integer },
+    left: 52, height: 290, endLabels: true,
+    valFmt: function (v) { return v.toFixed(2) + ' ms'; },
+    xName: function (v) { return '到达率 ' + rate(v); },
+    aria: '同一组发布端缓存对照，各档三轮整体 HTTP p99 中位数，包含缓存 25 在每秒 4000 次迭代的失败档'
+  });
+})();
+</script>
+</body>
+</html>

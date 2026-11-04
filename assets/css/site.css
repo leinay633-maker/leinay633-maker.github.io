@@ -17,8 +17,10 @@
   --mono: "JetBrains Mono", "SF Mono", "Cascadia Mono", Consolas, "Roboto Mono", Menlo, monospace;
 }
 
+/* 深色：默认跟系统；点过顶栏按钮就按 data-theme 走（存在 localStorage），两个方向都要能盖过系统设置 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
     --bg: #0d0f12;
     --surface: #13161a;
     --ink: #e8eaed;
@@ -32,6 +34,21 @@
     --panel-line: #262c32;
   }
 }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0f12;
+  --surface: #13161a;
+  --ink: #e8eaed;
+  --ink-2: #c2c7cd;
+  --muted: #8a929b;
+  --line: #22272d;
+  --line-2: #333a42;
+  --dot: #22272d;
+  --accent: #45c3d4;
+  --panel: #0a0c0e;
+  --panel-line: #262c32;
+}
+:root[data-theme="light"] { color-scheme: light; }
 
 *, *::before, *::after { box-sizing: border-box; }
 
@@ -109,6 +126,26 @@ p { text-wrap: pretty; }
   text-decoration: none;
 }
 .nav a:hover { color: var(--ink); }
+.topbar-right { display: flex; align-items: center; gap: clamp(12px, 3vw, 28px); }
+.theme-btn {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 479px) {
+  /* 手机上顶栏放不下六个导航加整句按钮，按钮只留“深色/浅色”两个字 */
+  .theme-btn { padding: 0 9px; }
+  .theme-btn .tb-long { display: none; }
+}
 
 /* 首屏 */
 .hero {
@@ -491,6 +528,7 @@ p { text-wrap: pretty; }
   text-decoration: none;
 }
 .links a::after { content: " ↗"; }
+.links a.internal::after { content: " →"; }
 .links a:hover { text-decoration: underline; text-underline-offset: 3px; }
 
 /* 讲解视频：先放封面，点了才换成 B 站播放器 */

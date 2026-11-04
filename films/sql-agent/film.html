@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>执行结果能教会模型多少</title>
+    <script src="assets/vendor/gsap-3.14.2.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "HF Sans";
+        src: url("assets/fonts/hf-sans.woff2") format("woff2");
+        font-weight: 100 900;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "HF Mono";
+        src: url("assets/fonts/hf-mono.woff2") format("woff2");
+        font-weight: 100 800;
+        font-display: swap;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #07080c; }
+      #root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #07080c; color: #ece6dc; font-family: "HF Sans", sans-serif; }
+      #bg {
+        position: absolute;
+        inset: 0;
+        background-color: #07080c;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 80px 80px;
+      }
+      #vig { position: absolute; inset: 0; background: radial-gradient(ellipse 75% 70% at 50% 48%, rgba(7, 8, 12, 0) 55%, rgba(3, 4, 6, 0.8) 100%); }
+      .scene { position: absolute; inset: 0; overflow: hidden; }
+      .si { position: absolute; inset: 0; }
+      .tx { position: absolute; white-space: nowrap; width: max-content; }
+      .cv { position: absolute; display: block; }
+
+      /* HUD */
+      .hud { position: absolute; inset: 0; }
+      .pbar { position: absolute; left: 0; top: 0; width: 1920px; height: 3px; background: #a371f7; box-shadow: 0 0 8px rgba(210, 168, 255, 0.55); transform-origin: 0 50%; }
+      .crn { position: absolute; border-color: #5a5f68; border-style: solid; border-width: 0; visibility: hidden; }
+      .crn-tl { left: 36px; top: 36px; border-left-width: 1px; border-top-width: 1px; }
+      .crn-tr { right: 36px; top: 36px; border-right-width: 1px; border-top-width: 1px; }
+      .crn-bl { left: 36px; bottom: 36px; border-left-width: 1px; border-bottom-width: 1px; }
+      .crn-br { right: 36px; bottom: 36px; border-right-width: 1px; border-bottom-width: 1px; }
+      .tlb { position: absolute; left: 150px; top: 48px; visibility: hidden; }
+      .tl-r1 { display: flex; align-items: center; gap: 12px; height: 28px; }
+      .chip { display: inline-block; font: 700 16px/24px "HF Mono", "HF Sans", monospace; color: #07080c; background: #ece6dc; padding: 0 7px; border-radius: 3px; }
+      .chap { font: 500 20px/28px "HF Sans", sans-serif; color: #8a8f98; }
+      .tl-lab { margin-top: 12px; font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.22em; color: #a371f7; white-space: nowrap; }
+      .tl-ttl { margin-top: 8px; font: 900 52px/64px "HF Sans", sans-serif; color: #ece6dc; white-space: nowrap; height: 64px; }
+      .tag { position: absolute; right: 64px; top: 54px; font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.16em; color: #8a8f98; white-space: nowrap; visibility: hidden; }
+      .tag .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #a371f7; margin-right: 10px; vertical-align: 2px; box-shadow: 0 0 6px rgba(210, 168, 255, 0.8); }
+      .plate { position: absolute; right: 64px; top: 88px; font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.14em; color: #7d828c; white-space: nowrap; visibility: hidden; }
+      .tele { position: absolute; left: 64px; top: 1012px; font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.2em; color: #7d828c; white-space: nowrap; visibility: hidden; }
+      .tcode { position: absolute; right: 64px; top: 1012px; font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.16em; color: #7d828c; white-space: nowrap; visibility: hidden; }
+      .cap { position: absolute; left: 960px; top: 916px; transform: translateX(-50%); padding: 4px 20px 6px; border-radius: 8px; background: rgba(7, 8, 12, 0.62); white-space: nowrap; visibility: hidden; }
+      .cap-t { font: 500 38px/52px "HF Sans", sans-serif; color: #ece6dc; }
+
+      /* 面板和数卡 */
+      .pnl { position: absolute; border: 1px solid rgba(163, 113, 247, 0.55); border-radius: 16px; background: #0d0f14; }
+      .pc { position: absolute; border-style: solid; border-width: 0; }
+      .pc-tl { left: -1px; top: -1px; border-left-width: 2px; border-top-width: 2px; border-top-left-radius: 16px; }
+      .pc-tr { right: -1px; top: -1px; border-right-width: 2px; border-top-width: 2px; border-top-right-radius: 16px; }
+      .pc-bl { left: -1px; bottom: -1px; border-left-width: 2px; border-bottom-width: 2px; border-bottom-left-radius: 16px; }
+      .pc-br { right: -1px; bottom: -1px; border-right-width: 2px; border-bottom-width: 2px; border-bottom-right-radius: 16px; }
+      .pl { position: absolute; left: 26px; top: 18px; font: 500 20px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.16em; color: #8a8f98; white-space: nowrap; }
+      .crow { position: absolute; display: flex; justify-content: space-between; align-items: baseline; }
+      .crow-l { font: 500 26px/36px "HF Sans", sans-serif; color: #4a4f58; }
+      .crow-v { font: 700 32px/36px "HF Mono", "HF Sans", monospace; }
+      .lab { font: 500 20px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.14em; color: #8a8f98; }
+      .tick { font: 500 20px/24px "HF Mono", "HF Sans", monospace; color: #6b707a; }
+      .line28 { font: 500 28px/36px "HF Sans", sans-serif; color: #ece6dc; }
+      .mono30 { font: 500 30px/36px "HF Mono", "HF Sans", monospace; color: #ece6dc; }
+      .bignum { position: absolute; white-space: nowrap; text-align: right; }
+      .big { font: 800 96px/1 "HF Mono", "HF Sans", monospace; }
+      .unit { font: 700 36px/1 "HF Sans", sans-serif; margin-left: 10px; }
+      .ptitle { position: absolute; left: 26px; top: 16px; font: 700 40px/52px "HF Sans", sans-serif; color: #ece6dc; white-space: nowrap; }
+      .ctr { left: 0; width: 1920px; text-align: center; }
+      .pcnt { position: absolute; right: 26px; top: 14px; font: 600 24px/30px "HF Mono", "HF Sans", monospace; color: #8a8f98; white-space: nowrap; }
+      .node { position: absolute; display: flex; flex-direction: column; justify-content: center; padding-left: 18px; }
+      .node-t { font: 700 26px/32px "HF Sans", sans-serif; color: #ece6dc; white-space: nowrap; }
+      .node-s { font: 500 18px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.08em; color: #8a8f98; white-space: nowrap; }
+      .badge { position: absolute; font: 700 20px/28px "HF Sans", sans-serif; padding: 0 8px; border-radius: 4px; white-space: nowrap; }
+      .qcard { position: absolute; border: 1px solid rgba(240, 160, 64, 0.6); border-radius: 12px; background: #0e0d0b; visibility: hidden; }
+      .qlab { position: absolute; left: 24px; top: 16px; font: 500 20px/24px "HF Mono", "HF Sans", monospace; letter-spacing: 0.16em; color: #f0a040; white-space: nowrap; }
+      .qbody { position: absolute; left: 24px; top: 52px; font: 500 40px/54px "HF Sans", sans-serif; color: #5a5f67; white-space: normal; word-break: break-all; }
+      .rline { position: absolute; font: 500 26px/40px "HF Sans", sans-serif; color: #c9c4bb; white-space: nowrap; }
+      .rline .kw { border-bottom: 1px solid transparent; }
+      .extag { position: absolute; font: 500 20px/26px "HF Mono", "HF Sans", monospace; letter-spacing: 0.14em; color: #8a8f98; border: 1px solid #4a4f58; border-radius: 4px; padding: 0 8px; white-space: nowrap; }
+      .ans { position: absolute; font: 500 28px/40px "HF Sans", sans-serif; color: #5a5f67; white-space: normal; }
+      .act { position: absolute; background: #1b1e25; border: 1px solid #3a3e46; border-radius: 8px; visibility: hidden; }
+      .cell { position: absolute; display: flex; align-items: center; justify-content: center; font: 600 24px/30px "HF Sans", sans-serif; border-radius: 8px; white-space: nowrap; }
+      #err { position: absolute; left: 40px; top: 40px; right: 40px; display: none; font: 400 22px/1.4 "HF Mono", "HF Sans", monospace; color: #e5486e; white-space: pre-wrap; }
+    </style>
+      <link rel="stylesheet" href="../player.css" />
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0.000" data-duration="631.645" data-fps="30" data-width="1920" data-height="1080">
+      <div id="bg" data-layout-ignore></div>
+      <div id="vig" data-layout-ignore></div>
+      <section id="s0" class="clip scene" data-start="0.000" data-duration="73.815" data-track-index="1"><div class="si"></div></section>
+      <section id="tc" class="clip scene" data-start="73.815" data-duration="3.000" data-track-index="2"><div class="si"></div></section>
+      <section id="c1" class="clip scene" data-start="76.815" data-duration="3.500" data-track-index="1"><div class="si"></div></section>
+      <section id="s1" class="clip scene" data-start="80.315" data-duration="129.940" data-track-index="2"><div class="si"></div></section>
+      <section id="c2" class="clip scene" data-start="210.255" data-duration="3.500" data-track-index="1"><div class="si"></div></section>
+      <section id="s2" class="clip scene" data-start="213.755" data-duration="72.425" data-track-index="2"><div class="si"></div></section>
+      <section id="c3" class="clip scene" data-start="286.180" data-duration="3.500" data-track-index="1"><div class="si"></div></section>
+      <section id="s3" class="clip scene" data-start="289.680" data-duration="102.470" data-track-index="2"><div class="si"></div></section>
+      <section id="c4" class="clip scene" data-start="392.150" data-duration="3.500" data-track-index="1"><div class="si"></div></section>
+      <section id="s4" class="clip scene" data-start="395.650" data-duration="96.365" data-track-index="2"><div class="si"></div></section>
+      <section id="c5" class="clip scene" data-start="492.015" data-duration="3.500" data-track-index="1"><div class="si"></div></section>
+      <section id="s5" class="clip scene" data-start="495.515" data-duration="76.970" data-track-index="2"><div class="si"></div></section>
+      <section id="s6" class="clip scene" data-start="572.485" data-duration="59.160" data-track-index="1"><div class="si"></div></section>
+      <section id="hud" class="clip scene" data-start="0.000" data-duration="631.645" data-track-index="8"><div class="si"></div></section>
+      <audio id="mix" src="assets/audio/mix.m4a" preload="none" data-start="0" data-duration="631.645" data-track-index="10" data-volume="1"></audio>
+      <div id="err"></div>
+    </div>
+    <script>window.__timelines = window.__timelines || {};</script>
+    <script src="assets/data/timing.js"></script>
+    <script src="assets/data/efa.js"></script>
+    <script src="assets/js/kit.js"></script>
+    <script src="assets/js/parts.js"></script>
+    <script src="assets/js/scenes/cards.js"></script>
+    <script src="assets/js/scenes/s0.js"></script>
+    <script src="assets/js/scenes/s1.js"></script>
+    <script src="assets/js/scenes/s2.js"></script>
+    <script src="assets/js/scenes/s3.js"></script>
+    <script src="assets/js/scenes/s4.js"></script>
+    <script src="assets/js/scenes/s5.js"></script>
+    <script src="assets/js/scenes/s6.js"></script>
+    <script src="assets/js/film.js"></script>
+    <script>window.FILM = {"title": "执行结果能教会模型多少", "chapters": [{"t": 0.0, "title": "开场：训练完，它不查了"}, {"t": 76.815, "title": "01 先把考场搭好"}, {"t": 210.255, "title": "02 训完就不查了"}, {"t": 286.18, "title": "03 老师先考过学生"}, {"t": 392.15, "title": "04 信号在哪"}, {"t": 492.015, "title": "05 还错在哪"}, {"t": 572.485, "title": "收尾：能教会模型多少"}]};</script>
+    <script src="../player.js"></script>
+  </body>
+</html>

@@ -10,6 +10,7 @@
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0d0f12" media="(prefers-color-scheme: dark)">
+<script>(function(){try{var t=localStorage.getItem("theme");if(t==="dark"||t==="light")document.documentElement.dataset.theme=t}catch(e){}})()</script>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/site.css">
 <script src="assets/js/site.js" defer></script>
@@ -20,6 +21,7 @@
 <header class="topbar">
   <div class="wrap topbar-inner">
     <a class="brand" href="#top">瞿才应</a>
+    <div class="topbar-right">
     <nav class="nav" aria-label="页面导航">
       <a href="#projects">项目</a>
       <a href="#experience">实习</a>
@@ -28,6 +30,8 @@
       <a href="#education">教育</a>
       <a href="#contact">联系</a>
     </nav>
+    <button class="theme-btn" type="button"><span class="tb-long">切换</span><span class="tb-mode">深色</span></button>
+    </div>
   </div>
 </header>
 
@@ -70,7 +74,7 @@
     <header class="section-head">
       <span class="section-no mono">01</span>
       <h2>项目</h2>
-      <p class="section-note">后训练、秒杀和选股三个项目的代码在 GitHub 公开仓库里，链接在项目末尾。后训练和选股两个项目各配了一部讲解视频。</p>
+      <p class="section-note">每个项目都有一页图文讲解，链接在项目末尾。后训练、秒杀和选股的代码在 GitHub 公开仓库里，后训练和选股各配了一部讲解视频。</p>
     </header>
 
     <article class="project">
@@ -119,6 +123,7 @@
         </ul>
         <ul class="tags"><li>Qwen3-4B</li><li>LoRA</li><li>拒绝采样微调</li><li>DPO</li><li>RLOO</li><li>FSDP2</li><li>vLLM</li></ul>
         <p class="links">
+          <a class="internal" href="projects/sql-agent/">图文讲解</a>
           <a href="https://github.com/leinay633-maker/sql-agent-post-training" target="_blank" rel="noopener">GitHub 仓库</a>
           <a href="https://www.bilibili.com/video/BV1RfxV68EgG/" target="_blank" rel="noopener">B 站讲解视频</a>
         </p>
@@ -154,6 +159,9 @@
           <li><b>校准与去偏</b>模型在随机曝光上整体高估、越冷门高估越多，按热度分组 Platt 校准后 7 个模型的 LogLoss 都低于全局 Platt；补充实验里 LightGBM 训练集混入约 5% 随机曝光数据，随机曝光测试 UAUC 提高 0.026。</li>
         </ul>
         <ul class="tags"><li>PyTorch</li><li>RQ-VAE 语义 ID</li><li>SASRec</li><li>LightGBM</li><li>DCN-v2</li><li>DIN</li><li>MMoE</li><li>双塔召回</li><li>logQ</li><li>概率校准</li></ul>
+        <p class="links">
+          <a class="internal" href="projects/rec-eval/">图文讲解</a>
+        </p>
       </div>
     </article>
 
@@ -187,6 +195,7 @@
         </ul>
         <ul class="tags"><li>Java 17</li><li>Spring Boot 3</li><li>Redis Lua</li><li>RabbitMQ</li><li>MySQL</li><li>k6</li></ul>
         <p class="links">
+          <a class="internal" href="projects/mini-seckill/">图文讲解</a>
           <a href="https://github.com/leinay633-maker/mini-seckill" target="_blank" rel="noopener">GitHub 仓库</a>
         </p>
       </div>
@@ -229,6 +238,7 @@
         </ul>
         <ul class="tags"><li>Python</li><li>pandas</li><li>LightGBM</li><li>BH-FDR</li><li>Clarabel</li><li>BaoStock</li></ul>
         <p class="links">
+          <a class="internal" href="projects/costrank/">图文讲解</a>
           <a href="https://github.com/leinay633-maker/costrank" target="_blank" rel="noopener">GitHub 仓库</a>
           <a href="https://www.bilibili.com/video/BV1z8x56uEhb/" target="_blank" rel="noopener">B 站讲解视频</a>
         </p>
@@ -370,7 +380,7 @@
 <footer class="footer">
   <div class="wrap footer-inner mono">
     <span>© 2026 瞿才应</span>
-    <span>最后更新 2026-11-03</span>
+    <span>最后更新 2026-11-04</span>
   </div>
 </footer>
 </body>
