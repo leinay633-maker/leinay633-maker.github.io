@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="renderer" content="webkit">
 <title>瞿才应 · 大模型算法 / 推荐算法</title>
-<meta name="description" content="瞿才应，华东师范大学 2027 届本科，求职大模型算法与推荐算法。实习经历：腾讯天美 J1、哔哩哔哩数据平台部、上海骏梦《ROX》。">
+<meta name="description" content="瞿才应，华东师范大学 2027 届本科，求职大模型算法与推荐算法。实习经历：阶跃星辰、腾讯天美 J1、哔哩哔哩数据平台部。">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)">
@@ -44,7 +44,7 @@
         <p class="eyebrow mono"><span>华东师范大学（985）</span> · <span>2027 届本科</span></p>
         <h1>瞿才应</h1>
         <p class="role">大模型算法<span class="slash">/</span>推荐算法</p>
-        <p class="lede">在哔哩哔哩做过 A/B 实验平台的分析 Agent 和评测平台，在腾讯天美做过游戏服务端的读链路、聊天推送和压测治理。项目做过 SQL 分析 Agent 的后训练、生成式召回与推荐模型的离线评测偏差研究、秒杀下单系统，以及扣除交易成本的机器学习选股研究。</p>
+        <p class="lede">在阶跃星辰做 Personal Agent 模型的后训练数据，在腾讯天美做过游戏服务端和冒险家战斗的强化学习训练链路，在哔哩哔哩做过 A/B 实验平台的分析 Agent 和评测平台。项目做过 SQL 分析 Agent 的后训练、生成式召回与推荐模型的离线评测偏差研究、秒杀下单系统、扣除交易成本的机器学习选股研究，以及已上架 Agensi 技能市场的 AI 编程用量看板。</p>
         <div class="actions">
           <a class="btn btn-primary" href="mailto:qu1024520330@163.com">发邮件</a>
           <button class="btn" type="button" data-copy="qu1024520330@163.com">复制邮箱</button>
@@ -62,9 +62,9 @@
       </aside>
     </div>
     <ul class="orgs" aria-label="实习单位">
+      <li><span class="org">阶跃星辰 · Personal Agent 数据团队</span><span class="when mono">2026.11 – 至今</span></li>
       <li><span class="org">腾讯 · 天美 J1</span><span class="when mono">2026.07 – 2026.11</span></li>
       <li><span class="org">哔哩哔哩 · 数据平台部</span><span class="when mono">2026.03 – 2026.07</span></li>
-      <li><span class="org">上海骏梦 · 《ROX》</span><span class="when mono">2026.01 – 2026.03</span></li>
     </ul>
   </div>
 </section>
@@ -74,7 +74,7 @@
     <header class="section-head">
       <span class="section-no mono">01</span>
       <h2>项目</h2>
-      <p class="section-note">每个项目都有一页图文讲解，链接在项目末尾。四个项目的代码都在 GitHub 公开仓库里，后训练和选股各配了一部讲解视频。</p>
+      <p class="section-note">前四个项目各有一页图文讲解，链接在项目末尾。五个项目的代码都在 GitHub 公开仓库里，后训练和选股各配了一部讲解视频。</p>
     </header>
 
     <article class="project">
@@ -245,6 +245,30 @@
         </p>
       </div>
     </article>
+
+    <article class="project">
+      <div class="project-media">
+        <div class="panel">
+          <div class="panel-bar mono"><span>demo</span><span>虚构数据演示</span></div>
+          <img src="assets/img/ai-usage-board-demo.webp" width="1280" height="675" alt="AI 编程用量看板的演示页：估算成本、总用量、请求数、缓存读取占比和每日估算成本柱状图，数据均为虚构" loading="lazy" decoding="async">
+          <dl class="panel-metrics">
+            <div><dt>本机汇总</dt><dd>约 3<small>秒</small></dd><dd class="delta">同一批日志，原来约 8 秒</dd></div>
+            <div><dt>外部依赖</dt><dd>0</dd><dd class="delta">只用 Node.js 内置模块</dd></div>
+            <div><dt>单文件 Skill</dt><dd>27<small>KB</small></dd><dd class="delta">安装包共 11.6 KB</dd></div>
+          </dl>
+        </div>
+      </div>
+      <div class="project-body">
+        <p class="project-meta mono"><span>P/05</span><span>个人项目 · 已上架 Agensi 技能市场</span></p>
+        <h3>AI 编程用量看板</h3>
+        <p class="project-lede">读取本机 Claude Code、Codex 会话日志，按请求去重后汇总多账号的用量、估算成本和输出速度，只用 Node.js 内置模块、可离线演示；按修改时间跳过统计窗口外的日志，本机汇总由约 8 秒降到约 3 秒，并打包成单文件 Agent Skill。</p>
+        <ul class="tags"><li>Node.js</li><li>Agent Skill</li><li>日志解析</li><li>请求去重</li><li>成本估算</li></ul>
+        <p class="links">
+          <a href="https://github.com/leinay633-maker/ai-usage-board" target="_blank" rel="noopener">GitHub 仓库</a>
+          <a href="https://agensi.io/skills/ai-usage-board-claude-code-codex-usage-summary" target="_blank" rel="noopener">Agensi 技能页</a>
+        </p>
+      </div>
+    </article>
   </div>
 </section>
 
@@ -257,15 +281,28 @@
 
     <ol class="timeline">
       <li class="exp">
+        <p class="exp-when mono"><span>2026.11</span><span>至今</span></p>
+        <div class="exp-main">
+          <h3>阶跃星辰 · Personal Agent 数据团队</h3>
+          <p class="exp-role">Agent 后训练数据算法实习生<span class="mono">数据合成 / Rubric / 评测</span></p>
+          <p class="exp-sum">负责 Personal Agent 模型（全双工语音 + 手机 GUI、工具调用）的后训练数据策略，覆盖 <span class="nowrap">mid-training</span>、SFT 数据和评测集。</p>
+          <ul class="points">
+            <li><b>轨迹合成与过滤</b>用 LLM 按场景分类树合成“多轮用户对话 + 工具执行轨迹”，控制任务分布、难度与长尾；过滤先走规则、再用 <span class="nowrap">LLM-as-Judge</span>，Judge 与人工金标对齐后放量，按抽检准确率迭代链路。</li>
+            <li><b>错误归因与定向补数据</b>围绕模型突出问题做错误归因（数据、环境还是模型），针对短板定向补数据，训后在隔离评测集上验证；制定全双工打断、附和、犹豫和工具调用的评分 Rubric。</li>
+          </ul>
+        </div>
+      </li>
+      <li class="exp">
         <p class="exp-when mono"><span>2026.07</span><span>2026.11</span></p>
         <div class="exp-main">
           <h3>腾讯 · 天美 J1</h3>
           <p class="exp-role">《怪物猎人：旅人》后台开发实习生<span class="mono">C++20 / Go</span></p>
-          <p class="exp-sum">负责游戏服务端的高并发读链路、聊天推送、过载保护与压测治理。</p>
+          <p class="exp-sum">负责游戏服务端的高并发读链路、聊天推送、过载保护与压测治理，以及冒险家战斗强化学习训练链路。</p>
           <ul class="points">
             <li><b>读链路与降级</b>榜单读请求由同榜串行改为并发处理，合并单请求内的重复查询，典型路径 DB 访问由 2 次降到 1 次。搭了按榜单资源控制、以整机 CPU 兜底的过载降级，进出阈值分离加连续周期判定来抑制抖动，支持配置热更新和快速回滚。</li>
             <li><b>聊天与消息拷贝</b>完成私聊、小频道和大频道的分层路由改造；用火焰图定位消息体深拷贝热点，改为常量引用和缓冲区借用交换。专项压测中单实例世界频道单 key 稳定无超时的上限约 2200 TPS。</li>
             <li><b>压测治理</b>修复压测客户端下行确认异常导致的缓存无法清理和指标失真，恢复可信基线；退队链路 DB 访问由 3 次降到 1 次，按既有压测数据估算 CPU 利用率降约 5 个百分点。</li>
+            <li><b>冒险家战斗强化学习</b>把 UE5 客户端改造成无人值守的训练环境，模型像玩家一样按 HUD 打龙；按技能槽抽象通用操作接口并做动作掩码，新增冒险家无需改代码；经 PPO 训练，早期小样本评测中太刀角色胜场由 0/11 提升到 6/10，仍在内部验证。</li>
           </ul>
         </div>
       </li>
@@ -280,18 +317,6 @@
             <li><b>工具编排</b>统一注册显著性分析、样本量与 MDE 互算、CUPED 方差缩减 SQL 等 11 类分析工具，加入分层超时、Presto→Spark 降级和连续失败熔断；模型生成的代码在子进程沙箱里执行。</li>
             <li><b>评测平台</b>发版验收由人工改为无人值守批量回归，一轮验收人力约降九成。按知识、SQL、结论、过程建断言，接入轨迹造例、LLM Judge 和 Bad Case 回流。</li>
             <li><b>Runtime 与 MCP</b>统一 SSE 与 MCP 两类入口的执行内核，支持断线回放、外置 Checkpoint 和服务重启后续跑。实验分析流程开放为 MCP 工具后，上线 3 天在没有专项推广的情况下，有 17 名用户发起 144 次对话。</li>
-          </ul>
-        </div>
-      </li>
-      <li class="exp">
-        <p class="exp-when mono"><span>2026.01</span><span>2026.03</span></p>
-        <div class="exp-main">
-          <h3>上海骏梦 · 《ROX》项目</h3>
-          <p class="exp-role">LLM 应用开发实习生<span class="mono">配表自动化 / 数据验证</span></p>
-          <p class="exp-sum">《ROX》四地区配表以 JSON 为唯一写入源，把字段规则、历史案例、跨表校验和人工复核流程沉淀成可复用的本地 AI Skill。</p>
-          <ul class="points">
-            <li><b>AI 配表 Skill</b>基于 Claude Code 和 Codex 搭建配表 Skill，沉淀 10 张核心表字段字典、13 个流程规范和 13 个案例并按需加载。起草的 JSON 经四维校验和打表硬校验后交付四地区，复核出的错误回写案例库。</li>
-            <li><b>模拟与数据验证</b>独立完成美服周年庆动态奖池 1000 万次单抽 Monte Carlo 模拟，量化余额波动区间与最低档停留占比；递归展开 4 个地区、最深 6 层的嵌套奖励链，输出核对表和风险清单。</li>
           </ul>
         </div>
       </li>
@@ -333,13 +358,11 @@
       <h2>技能</h2>
     </header>
     <dl class="skills">
-      <div><dt>语言</dt><dd>C++20、Go、Java、Python、TypeScript</dd></div>
-      <div><dt>模型训练</dt><dd>PyTorch、LoRA、DPO、RLOO、vLLM、FSDP2；做过拒绝采样微调、蒸馏与在线强化学习的完整后训练</dd></div>
-      <div><dt>后端</dt><dd>Spring Boot、FastAPI、Redis、MySQL、RabbitMQ、SSE 流式服务；限流、幂等、熔断与过载降级</dd></div>
-      <div><dt>AI Agent</dt><dd>LangGraph / DeepAgents 编排与 Middleware 扩展，MCP 服务端与工具设计，RAG 检索，上下文工程与会话状态管理，Agent 评测与 LLM Judge</dd></div>
-      <div><dt>AI 工具</dt><dd>Claude Code、Codex、Skill 编写与维护、Prompt Caching；读过 Claude Code 源码（Query Loop、Tool Runtime、权限与压缩）</dd></div>
-      <div><dt>前端</dt><dd>Vue、React、TypeScript，做过评测标注台和对话前端</dd></div>
-      <div><dt>计算机基础</dt><dd>数据结构与算法、操作系统、计算机网络、数据库原理</dd></div>
+      <div><dt>后训练</dt><dd>SFT（拒绝采样微调）、DPO、离线与在线蒸馏、在线强化学习（RLOO）；PyTorch / LoRA / vLLM / FSDP2，训练与采样同卡协同、LoRA 每步热更新，235B 模型张量并行推理。</dd></div>
+      <div><dt>推荐模型</dt><dd>生成式召回（RQ-VAE 语义 ID）与 SASRec、ItemCF、双塔（in-batch 负采样、logQ 校正）召回，精排 LightGBM / DCN-v2 / DIN / 多目标 MMoE；特征工程按时间切分，统计特征交叉拟合、用户历史序列建模。</dd></div>
+      <div><dt>评测与实验</dt><dd>防泄漏评测、GAUC / UAUC、概率校准；预注册、bootstrap 区间与 Holm 校正；A/B 分析工具。</dd></div>
+      <div><dt>Agent / 编程</dt><dd>多轮 Tool Use、MCP、RAG 与上下文工程；Python / SQL / C++20 / Go，数据结构与算法。</dd></div>
+      <div><dt>工程</dt><dd>Java / Spring Boot、FastAPI、Redis、MySQL、RabbitMQ，限流、幂等、熔断与过载降级；Node.js、TypeScript / Vue；Claude Code、Codex 与 Agent Skill 编写。</dd></div>
     </dl>
   </div>
 </section>
@@ -380,7 +403,7 @@
 <footer class="footer">
   <div class="wrap footer-inner mono">
     <span>© 2026 瞿才应</span>
-    <span>最后更新 2026-11-04</span>
+    <span>最后更新 2026-11-08</span>
   </div>
 </footer>
 </body>

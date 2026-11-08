@@ -70,6 +70,8 @@ img { display: block; max-width: 100%; height: auto; }
 a { color: inherit; }
 p { text-wrap: pretty; }
 .mono { font-family: var(--mono); }
+/* 带连字符的英文词（mid-training、LLM-as-Judge）浏览器会在连字符处断行 */
+.nowrap { white-space: nowrap; }
 .sr-only {
   position: absolute;
   width: 1px;
